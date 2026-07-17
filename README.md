@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Multicotizador de Autos
 
-## Getting Started
+Aplicación web para brokers de seguros en México. Captura los datos de un
+vehículo/conductor una sola vez y consulta **en paralelo** a varias
+aseguradoras para comparar primas y coberturas lado a lado.
 
-First, run the development server:
+Aseguradoras contempladas: **Quálitas, Banorte, HDI, Zurich, GNP, Seguros El
+Potosí, Afirme y Atlas**.
+
+> ⚠️ **Estado actual: prototipo funcional con datos SIMULADOS.**
+> Los adaptadores devuelven cotizaciones calculadas localmente (determinísticas)
+> para poder probar el flujo completo. Cada adaptador tiene marcado el punto
+> exacto (`TODO(integración)`) donde se conecta el web service real de la
+> aseguradora. Ver [Integración real](#integración-real).
+
+## Stack
+
+- [Next.js 14](https://nextjs.org/) (App Router) + TypeScript
+- Tailwind CSS
+- API Route (`/api/cotizar`) que orquesta a todos los adaptadores
+
+## Desarrollo
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run lint     # ESLint
+npm run build    # build de producción
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Arquitectura
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+src/
+  domain/
+    types.ts        # Interfaz común: CotizacionRequest / CotizacionResultado
+    catalogs.ts     # Catálogos base para el formulario (marcas, paquetes...)
+  insurers/
+    types.ts        # Contrato InsurerAdapter
+    base.ts         # Generador de cotización simulada (reemplazable)
+    qualitas.ts     # Un adaptador por aseguradora
+    banorte.ts
+    hdi.ts  zurich.ts  gnp.ts  elpotosi.ts  afirme.ts  atlas.ts
+    registry.ts     # Registro central de aseguradoras
+  lib/
+    quote-service.ts # Consulta a TODAS en paralelo (con timeout y manejo de error)
+    format.ts
+  app/
+    api/cotizar/route.ts  # Endpoint POST
+    page.tsx              # Formulario + comparativa
+  components/
+    QuoteForm.tsx
+    QuoteResults.tsx
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+El multicotizador solo conoce la interfaz `InsurerAdapter`. Agregar una
+aseguradora nueva = crear un archivo en `src/insurers/` + registrarlo en
+`registry.ts`. Nada más cambia.
 
-## Learn More
+## Integración real
 
-To learn more about Next.js, take a look at the following resources:
+Cada aseguradora expone su propio web service (SOAP o REST) con catálogos y
+formatos distintos. Para conectar uno:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Copia `.env.example` a `.env.local` y llena las credenciales de esa
+   aseguradora (`<ASEGURADORA>_WS_URL`, `_WS_USER`, `_WS_PASS`).
+2. En su adaptador (p. ej. `src/insurers/qualitas.ts`), reemplaza la llamada a
+   `cotizarMock(...)` por:
+   - autenticación contra el web service,
+   - mapeo de `CotizacionRequest` al formato de entrada del WS (incluye
+     **homologación de catálogos** marca/modelo/versión, que difieren por
+     aseguradora),
+   - llamada al endpoint,
+   - mapeo de la respuesta a `CotizacionResultado`,
+   - manejo de errores/timeouts devolviendo `{ status: "error", error }`.
+3. El resto de la app (orquestación en paralelo, ordenamiento por prima, UI de
+   comparativa) ya funciona sin cambios.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Lo que se necesita de cada aseguradora
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Documentación técnica del web service (WSDL/OpenAPI, endpoints, ejemplos).
+- Credenciales de ambiente de pruebas y de producción.
+- Catálogos oficiales (marca/submarca/versión, coberturas, paquetes).
