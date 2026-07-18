@@ -1,6 +1,6 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
-import { cotizarMock, type PricingConfig } from "./base";
+import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
 
 const cfg: PricingConfig = {
   factorBase: 1.08,
@@ -15,6 +15,7 @@ const cfg: PricingConfig = {
 export const zurich: InsurerAdapter = {
   id: "zurich",
   nombre: "Zurich",
+  descuentoDefault: 25,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     // TODO(integración): reemplazar por la llamada real al web service de
     // Zurich (REST/JSON). Pasos:
@@ -24,6 +25,12 @@ export const zurich: InsurerAdapter = {
     //      de marca/modelo/versión con los de Zurich).
     //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
     //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(this.id, this.nombre, cfg, request);
+    return cotizarMock(
+      this.id,
+      this.nombre,
+      cfg,
+      request,
+      resolverDescuento(request, this.id, this.descuentoDefault),
+    );
   },
 };

@@ -34,6 +34,11 @@ export interface CotizacionRequest {
   conductor: Conductor;
   paquete: Paquete;
   formaPago: FormaPago;
+  // Descuento (%) a aplicar por aseguradora: { [aseguradoraId]: porcentaje }.
+  // Cada aseguradora ofrece un descuento comercial distinto; el broker puede
+  // ajustarlo por cotización. Si no se envía, se usa el descuento por defecto
+  // de cada aseguradora.
+  descuentos?: Record<string, number>;
 }
 
 export interface Cobertura {
@@ -44,6 +49,12 @@ export interface Cobertura {
 }
 
 export interface DesglosePrima {
+  // Prima neta antes de aplicar el descuento comercial de la aseguradora.
+  primaNetaSinDescuento: number;
+  // Descuento comercial aplicado.
+  descuentoPorcentaje: number;
+  descuentoMonto: number;
+  // Prima neta final (ya con el descuento aplicado).
   primaNeta: number;
   derechos: number;
   recargoPagoFraccionado: number;
