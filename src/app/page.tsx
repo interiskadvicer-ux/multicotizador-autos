@@ -10,6 +10,8 @@ export default function Home() {
   const [resultados, setResultados] = useState<CotizacionResultado[] | null>(
     null,
   );
+  const [ultimaSolicitud, setUltimaSolicitud] =
+    useState<CotizacionRequest | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +19,7 @@ export default function Home() {
     setCargando(true);
     setError(null);
     setResultados(null);
+    setUltimaSolicitud(request);
     try {
       const res = await fetch("/api/cotizar", {
         method: "POST",
@@ -75,7 +78,7 @@ export default function Home() {
 
       {resultados && (
         <div className="mt-8">
-          <QuoteResults resultados={resultados} />
+          <QuoteResults resultados={resultados} request={ultimaSolicitud} />
         </div>
       )}
     </main>

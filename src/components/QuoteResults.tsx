@@ -1,27 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import type { CotizacionResultado } from "@/domain/types";
+import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import { formatMXN } from "@/lib/format";
+import { generarPdfCotizacion } from "@/lib/pdf";
 
 interface Props {
   resultados: CotizacionResultado[];
+  request: CotizacionRequest | null;
 }
 
-export default function QuoteResults({ resultados }: Props) {
+export default function QuoteResults({ resultados, request }: Props) {
   const exitosas = resultados.filter((r) => r.status === "success");
   const conError = resultados.filter((r) => r.status !== "success");
   const mejorPrima = exitosas[0]?.prima?.primaTotal;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold text-slate-800">
-          Comparativa de cotizaciones
-        </h2>
-        <span className="text-sm text-slate-500">
-          {exitosas.length} de {resultados.length} aseguradoras respondieron
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">
+            Comparativa de cotizaciones
+          </h2>
+          <span className="text-sm text-slate-500">
+            {exitosas.length} de {resultados.length} aseguradoras respondieron
+          </span>
+        </div>
+        {request && exitosas.length > 0 && (
+          <button
+            type="button"
+            onClick={() => generarPdfCotizacion(request, resultados)}
+            className="inline-flex items-center gap-2 rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50"
+          >
+            Descargar PDF para el cliente
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -76,11 +89,18 @@ function InsurerCard({
           </h3>
           <p className="text-xs text-slate-500">Paquete {resultado.paquete}</p>
         </div>
-        {esMejor && (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
-            Mejor precio
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1">
+          {esMejor && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+              Mejor precio
+            </span>
+          )}
+          {prima && prima.descuentoPorcentaje > 0 && (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-700">
+              −{prima.descuentoPorcentaje}% desc.
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4">
@@ -92,6 +112,20 @@ function InsurerCard({
 
       {prima && (
         <dl className="mt-3 space-y-1 text-xs text-slate-600">
+          {prima.descuentoPorcentaje > 0 && (
+            <>
+              <Row
+                label="Prima neta (sin desc.)"
+                value={formatMXN(prima.primaNetaSinDescuento)}
+              />
+              <div className="flex justify-between text-emerald-600">
+                <dt>Descuento ({prima.descuentoPorcentaje}%)</dt>
+                <dd className="font-medium">
+                  −{formatMXN(prima.descuentoMonto)}
+                </dd>
+              </div>
+            </>
+          )}
           <Row label="Prima neta" value={formatMXN(prima.primaNeta)} />
           {prima.recargoPagoFraccionado > 0 && (
             <Row

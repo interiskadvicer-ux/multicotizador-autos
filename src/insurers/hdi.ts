@@ -1,6 +1,6 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
-import { cotizarMock, type PricingConfig } from "./base";
+import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
 
 const cfg: PricingConfig = {
   factorBase: 0.95,
@@ -15,6 +15,7 @@ const cfg: PricingConfig = {
 export const hdi: InsurerAdapter = {
   id: "hdi",
   nombre: "HDI Seguros",
+  descuentoDefault: 35,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     // TODO(integración): reemplazar por la llamada real al web service de
     // HDI Seguros (SOAP). Pasos:
@@ -24,6 +25,12 @@ export const hdi: InsurerAdapter = {
     //      de marca/modelo/versión con los de HDI Seguros).
     //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
     //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(this.id, this.nombre, cfg, request);
+    return cotizarMock(
+      this.id,
+      this.nombre,
+      cfg,
+      request,
+      resolverDescuento(request, this.id, this.descuentoDefault),
+    );
   },
 };

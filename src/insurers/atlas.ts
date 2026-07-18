@@ -1,6 +1,6 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
-import { cotizarMock, type PricingConfig } from "./base";
+import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
 
 const cfg: PricingConfig = {
   factorBase: 0.97,
@@ -15,6 +15,7 @@ const cfg: PricingConfig = {
 export const atlas: InsurerAdapter = {
   id: "atlas",
   nombre: "Seguros Atlas",
+  descuentoDefault: 25,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     // TODO(integración): reemplazar por la llamada real al web service de
     // Seguros Atlas (SOAP). Pasos:
@@ -24,6 +25,12 @@ export const atlas: InsurerAdapter = {
     //      de marca/modelo/versión con los de Seguros Atlas).
     //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
     //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(this.id, this.nombre, cfg, request);
+    return cotizarMock(
+      this.id,
+      this.nombre,
+      cfg,
+      request,
+      resolverDescuento(request, this.id, this.descuentoDefault),
+    );
   },
 };

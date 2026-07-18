@@ -7,5 +7,8 @@ import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 export interface InsurerAdapter {
   id: string;
   nombre: string;
+  // Descuento comercial (%) por defecto que ofrece la aseguradora. El broker
+  // puede sobreescribirlo por cotización desde el formulario.
+  descuentoDefault: number;
   cotizar(request: CotizacionRequest): Promise<CotizacionResultado>;
 }

@@ -21,4 +21,8 @@ export const ADAPTERS: InsurerAdapter[] = [
   atlas,
 ];
 
-export const ASEGURADORAS = ADAPTERS.map((a) => ({ id: a.id, nombre: a.nombre }));
+export const ASEGURADORAS = ADAPTERS.map((a) => ({
+  id: a.id,
+  nombre: a.nombre,
+  descuentoDefault: a.descuentoDefault,
+}));

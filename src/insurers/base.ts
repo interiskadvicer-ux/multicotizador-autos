@@ -104,6 +104,7 @@ export function construirCoberturas(
 function calcularPrima(
   cfg: PricingConfig,
   request: CotizacionRequest,
+  descuentoPct: number,
 ): DesglosePrima {
   const { vehiculo, conductor, paquete, formaPago } = request;
   const valor = vehiculo.valorFactura ?? estimarValor(vehiculo.anio);
@@ -124,7 +125,7 @@ function calcularPrima(
     `${vehiculo.marca}${vehiculo.modelo}${vehiculo.cp}`,
   );
 
-  let primaNeta =
+  let primaNetaSinDescuento =
     valor *
     tasaPaquete[paquete] *
     factorEdad *
@@ -138,7 +139,12 @@ function calcularPrima(
     LIMITADA: 2800,
     RC: 1500,
   };
-  primaNeta = Math.max(primaNeta, minimo[paquete]);
+  primaNetaSinDescuento = Math.max(primaNetaSinDescuento, minimo[paquete]);
+
+  // Descuento comercial de la aseguradora (0–100 %), acotado a un rango válido.
+  const descuento = Math.min(Math.max(descuentoPct, 0), 100);
+  const descuentoMonto = primaNetaSinDescuento * (descuento / 100);
+  const primaNeta = primaNetaSinDescuento - descuentoMonto;
 
   const recargoPct = cfg.recargoFraccionado[formaPago] ?? 0;
   const recargoPagoFraccionado = primaNeta * recargoPct;
@@ -147,6 +153,9 @@ function calcularPrima(
   const iva = subtotal * IVA;
 
   return {
+    primaNetaSinDescuento: round2(primaNetaSinDescuento),
+    descuentoPorcentaje: descuento,
+    descuentoMonto: round2(descuentoMonto),
     primaNeta: round2(primaNeta),
     derechos: round2(derechos),
     recargoPagoFraccionado: round2(recargoPagoFraccionado),
@@ -159,6 +168,18 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Devuelve el descuento (%) a aplicar para una aseguradora: el que el broker
+// envió en la solicitud o, si no viene, el descuento por defecto de la
+// aseguradora.
+export function resolverDescuento(
+  request: CotizacionRequest,
+  aseguradoraId: string,
+  descuentoDefault: number,
+): number {
+  const d = request.descuentos?.[aseguradoraId];
+  return typeof d === "number" && !Number.isNaN(d) ? d : descuentoDefault;
+}
+
 // Genera una cotización simulada determinística. Reemplaza esta función por la
 // llamada real al web service en cada adaptador cuando tengas credenciales.
 export async function cotizarMock(
@@ -166,6 +187,7 @@ export async function cotizarMock(
   aseguradora: string,
   cfg: PricingConfig,
   request: CotizacionRequest,
+  descuentoPct: number,
 ): Promise<CotizacionResultado> {
   const inicioTiempo = Date.now();
   // Simula latencia de red variable de un web service real.
@@ -181,7 +203,7 @@ export async function cotizarMock(
     status: "success",
     paquete: request.paquete,
     moneda: "MXN",
-    prima: calcularPrima(cfg, request),
+    prima: calcularPrima(cfg, request, descuentoPct),
     coberturas: construirCoberturas(cfg, request.paquete),
     vigencia: {
       inicio: inicio.toISOString().slice(0, 10),
