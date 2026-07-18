@@ -18,15 +18,50 @@ Potosí, Afirme y Atlas**.
 - [Next.js 14](https://nextjs.org/) (App Router) + TypeScript
 - Tailwind CSS
 - API Route (`/api/cotizar`) que orquesta a todos los adaptadores
+- **SQLite** (better-sqlite3) para usuarios, pólizas y auditoría
+- Autenticación por sesión (cookie httpOnly firmada con `jose`) + `bcryptjs`
+- Exportación a **Excel** con `exceljs`
+
+## Módulos
+
+- **Cotizador** (`/`): comparativa multi-aseguradora (requiere sesión).
+- **Administrador de pólizas** (`/polizas`): alta/edición de pólizas (ramo,
+  aseguradora, asegurado, prima neta, prima total, vigencia), reporte de
+  **vencimientos y avisos de renovación (30/60 días)** y exportación a Excel.
+  Acceso: `ADMIN` y `POLIZAS`.
+- **Usuarios** (`/admin/usuarios`): alta de usuarios, roles y activación.
+  Acceso: `ADMIN`.
+- **Reporte de actividad** (`/admin/actividad`): bitácora por usuario con
+  filtros y descarga en Excel. Acceso: `ADMIN`.
+
+Roles: `ADMIN` (todo), `POLIZAS` (cotizador + pólizas), `COTIZADOR` (solo
+cotizar).
 
 ## Desarrollo
 
 ```bash
 npm install
+cp .env.example .env.local   # define al menos AUTH_SECRET
 npm run dev      # http://localhost:3000
 npm run lint     # ESLint
 npm run build    # build de producción
 ```
+
+### Variables de entorno
+
+- `AUTH_SECRET` (obligatorio): secreto para firmar las sesiones (≥16 chars).
+  Genera uno con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+- `DATABASE_PATH` (opcional): ruta del archivo SQLite (por defecto `./data/app.db`).
+
+### Crear el administrador inicial
+
+```bash
+ADMIN_EMAIL=admin@tudominio.com ADMIN_PASSWORD='una-contraseña-fuerte' \
+  ADMIN_NOMBRE="Nombre Admin" npm run seed:admin
+```
+
+Es idempotente: si el correo ya existe, actualiza su contraseña y lo deja como
+`ADMIN` activo. La base de datos (`/data`) queda fuera del repositorio.
 
 ## Arquitectura
 
