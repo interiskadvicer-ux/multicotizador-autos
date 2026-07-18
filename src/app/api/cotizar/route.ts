@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { CotizacionRequest } from "@/domain/types";
 import { cotizarTodas } from "@/lib/quote-service";
+import { requireApiSesion } from "@/lib/api-auth";
+import { registrarActividad } from "@/lib/activity";
 
 function esRequestValido(body: unknown): body is CotizacionRequest {
   if (!body || typeof body !== "object") return false;
@@ -19,6 +21,13 @@ function esRequestValido(body: unknown): body is CotizacionRequest {
 }
 
 export async function POST(req: Request) {
+  const { sesion, error } = await requireApiSesion([
+    "ADMIN",
+    "POLIZAS",
+    "COTIZADOR",
+  ]);
+  if (error) return error;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -37,5 +46,10 @@ export async function POST(req: Request) {
   }
 
   const resultados = await cotizarTodas(body);
+  registrarActividad(
+    sesion,
+    "COTIZAR",
+    `Cotizó ${body.vehiculo.marca} ${body.vehiculo.modelo} ${body.vehiculo.anio} (${body.paquete})`,
+  );
   return NextResponse.json({ resultados });
 }
