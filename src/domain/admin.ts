@@ -20,6 +20,9 @@ export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
   },
 ];
 
+// Lista de roles válidos para validar entradas en la API.
+export const ROLES_VALIDOS: Rol[] = ROLES.map((r) => r.value);
+
 export interface Usuario {
   id: number;
   email: string;

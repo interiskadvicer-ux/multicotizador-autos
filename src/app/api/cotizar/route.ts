@@ -3,6 +3,7 @@ import type { CotizacionRequest } from "@/domain/types";
 import { cotizarTodas } from "@/lib/quote-service";
 import { requireApiSesion } from "@/lib/api-auth";
 import { registrarActividad } from "@/lib/activity";
+import { jsonError, parseJsonBody } from "@/lib/http";
 
 function esRequestValido(body: unknown): body is CotizacionRequest {
   if (!body || typeof body !== "object") return false;
@@ -28,20 +29,16 @@ export async function POST(req: Request) {
   ]);
   if (error) return error;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Cuerpo JSON inválido." },
-      { status: 400 },
-    );
-  }
+  const { data: body, error: bodyError } = await parseJsonBody(
+    req,
+    "Cuerpo JSON inválido.",
+  );
+  if (bodyError) return bodyError;
 
   if (!esRequestValido(body)) {
-    return NextResponse.json(
-      { error: "Faltan campos requeridos en la solicitud de cotización." },
-      { status: 422 },
+    return jsonError(
+      "Faltan campos requeridos en la solicitud de cotización.",
+      422,
     );
   }
 

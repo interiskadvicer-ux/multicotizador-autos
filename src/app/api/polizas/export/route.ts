@@ -1,11 +1,8 @@
-import { NextResponse } from "next/server";
 import { requireApiSesion } from "@/lib/api-auth";
 import { listarPolizasConEstado, vencimientos } from "@/lib/polizas";
 import { excelPolizas, nombreArchivo } from "@/lib/excel";
 import { registrarActividad } from "@/lib/activity";
-
-const XLSX_MIME =
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+import { excelResponse } from "@/lib/http";
 
 export async function GET(req: Request) {
   const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS"]);
@@ -17,9 +14,7 @@ export async function GET(req: Request) {
   const datos = soloVencimientos ? vencimientos() : listarPolizasConEstado();
   const titulo = soloVencimientos ? "Vencimientos" : "Pólizas";
   const buffer = await excelPolizas(datos, titulo);
-  const nombre = nombreArchivo(
-    soloVencimientos ? "vencimientos" : "polizas",
-  );
+  const nombre = nombreArchivo(soloVencimientos ? "vencimientos" : "polizas");
 
   registrarActividad(
     sesion,
@@ -27,11 +22,5 @@ export async function GET(req: Request) {
     `Exportó ${titulo} a Excel (${datos.length} registros)`,
   );
 
-  return new NextResponse(buffer, {
-    status: 200,
-    headers: {
-      "Content-Type": XLSX_MIME,
-      "Content-Disposition": `attachment; filename="${nombre}"`,
-    },
-  });
+  return excelResponse(buffer, nombre);
 }
