@@ -22,7 +22,17 @@ export async function GET(req: Request) {
     hasta: hasta || undefined,
   });
 
-  const buffer = await excelActividad(registros);
+  let buffer: ArrayBuffer;
+  try {
+    buffer = await excelActividad(registros);
+  } catch (err) {
+    console.error("[export/actividad] No se pudo generar el Excel:", err);
+    return NextResponse.json(
+      { error: "No se pudo generar el archivo de Excel." },
+      { status: 500 },
+    );
+  }
+
   registrarActividad(
     sesion,
     "EXPORT_ACTIVIDAD",

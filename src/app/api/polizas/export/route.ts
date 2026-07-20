@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireApiSesion } from "@/lib/api-auth";
-import { listarPolizasConEstado, vencimientos } from "@/lib/polizas";
+import {
+  listarPolizasConEstado,
+  vencimientos,
+  type PolizaConEstado,
+} from "@/lib/polizas";
 import { excelPolizas, nombreArchivo } from "@/lib/excel";
 import { registrarActividad } from "@/lib/activity";
 
@@ -14,9 +18,21 @@ export async function GET(req: Request) {
   const tipo = new URL(req.url).searchParams.get("tipo");
   const soloVencimientos = tipo === "vencimientos";
 
-  const datos = soloVencimientos ? vencimientos() : listarPolizasConEstado();
   const titulo = soloVencimientos ? "Vencimientos" : "Pólizas";
-  const buffer = await excelPolizas(datos, titulo);
+
+  let buffer: ArrayBuffer;
+  let datos: PolizaConEstado[];
+  try {
+    datos = soloVencimientos ? vencimientos() : listarPolizasConEstado();
+    buffer = await excelPolizas(datos, titulo);
+  } catch (err) {
+    console.error("[export/polizas] No se pudo generar el Excel:", err);
+    return NextResponse.json(
+      { error: "No se pudo generar el archivo de Excel." },
+      { status: 500 },
+    );
+  }
+
   const nombre = nombreArchivo(
     soloVencimientos ? "vencimientos" : "polizas",
   );

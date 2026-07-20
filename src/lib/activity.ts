@@ -33,8 +33,13 @@ export function registrarActividad(
       `INSERT INTO activity_logs (usuario_id, usuario_email, accion, detalle)
        VALUES (?, ?, ?, ?)`,
     ).run(usuario.id ?? null, usuario.email, accion, detalle);
-  } catch {
-    // Silencioso a propósito.
+  } catch (err) {
+    // No propaga la excepción para no tumbar la operación principal, pero sí
+    // la registra: un fallo de auditoría persistente debe ser visible en logs.
+    console.error(
+      `[activity] No se pudo registrar la actividad "${accion}" de ${usuario.email}:`,
+      err,
+    );
   }
 }
 
