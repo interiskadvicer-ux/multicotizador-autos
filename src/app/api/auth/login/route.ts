@@ -3,9 +3,28 @@ import { cookies } from "next/headers";
 import { buscarUsuarioPorEmail, verifyPassword } from "@/lib/auth";
 import { crearToken, COOKIE_SESION, MAX_AGE_SESION } from "@/lib/session";
 import { registrarActividad } from "@/lib/activity";
+import { consumir, ipCliente } from "@/lib/rate-limit";
 import type { Rol } from "@/domain/admin";
 
+// Máximo de intentos de login por IP dentro de la ventana.
+const MAX_INTENTOS = 10;
+const VENTANA_MS = 15 * 60 * 1000; // 15 minutos
+
 export async function POST(req: Request) {
+  const limite = consumir(`login:${ipCliente(req)}`, MAX_INTENTOS, VENTANA_MS);
+  if (!limite.permitido) {
+    return NextResponse.json(
+      {
+        error:
+          "Demasiados intentos de inicio de sesión. Inténtalo más tarde.",
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limite.reintentarEnSegundos) },
+      },
+    );
+  }
+
   let body: { email?: string; password?: string };
   try {
     body = await req.json();
