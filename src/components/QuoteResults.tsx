@@ -11,9 +11,23 @@ interface Props {
 }
 
 export default function QuoteResults({ resultados, request }: Props) {
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const exitosas = resultados.filter((r) => r.status === "success");
   const conError = resultados.filter((r) => r.status !== "success");
   const mejorPrima = exitosas[0]?.prima?.primaTotal;
+
+  function descargarPdf() {
+    if (!request) return;
+    try {
+      generarPdfCotizacion(request, resultados);
+      setPdfError(null);
+    } catch (err) {
+      console.error("No se pudo generar el PDF de la cotización:", err);
+      setPdfError(
+        "No se pudo generar el PDF. Intenta de nuevo o contacta a soporte.",
+      );
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -29,13 +43,19 @@ export default function QuoteResults({ resultados, request }: Props) {
         {request && exitosas.length > 0 && (
           <button
             type="button"
-            onClick={() => generarPdfCotizacion(request, resultados)}
+            onClick={descargarPdf}
             className="inline-flex items-center gap-2 rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50"
           >
             Descargar PDF para el cliente
           </button>
         )}
       </div>
+
+      {pdfError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {pdfError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {exitosas.map((r) => (

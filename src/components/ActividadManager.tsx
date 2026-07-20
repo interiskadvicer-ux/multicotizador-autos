@@ -56,7 +56,12 @@ export default function ActividadManager() {
     fetch("/api/usuarios")
       .then((r) => (r.ok ? r.json() : { usuarios: [] }))
       .then((d) => setUsuarios(d.usuarios ?? []))
-      .catch(() => setUsuarios([]));
+      .catch((err) => {
+        // El filtro por usuario es opcional, así que degradamos a lista vacía,
+        // pero dejamos rastro del fallo en consola en lugar de ocultarlo.
+        console.error("No se pudo cargar la lista de usuarios:", err);
+        setUsuarios([]);
+      });
   }, []);
 
   useEffect(() => {
