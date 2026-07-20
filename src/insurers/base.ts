@@ -5,6 +5,7 @@ import type {
   DesglosePrima,
   Paquete,
 } from "@/domain/types";
+import type { InsurerAdapter } from "./types";
 
 // Configuración por aseguradora que alimenta el generador de cotización
 // simulada. Cuando conectes el web service real, cada adaptador reemplazará
@@ -210,5 +211,56 @@ export async function cotizarMock(
       fin: fin.toISOString().slice(0, 10),
     },
     tiempoRespuestaMs: Date.now() - inicioTiempo,
+  };
+}
+
+// Valores de PricingConfig comunes a todas las aseguradoras. Los adaptadores
+// solo especifican lo que los diferencia (factor, derechos, sumas aseguradas).
+const DEFAULT_RECARGO_FRACCIONADO: PricingConfig["recargoFraccionado"] = {
+  CONTADO: 0,
+  MENSUAL: 0.1,
+  TRIMESTRAL: 0.07,
+  SEMESTRAL: 0.05,
+};
+const DEFAULT_DEDUCIBLE_DANOS = "5%";
+const DEFAULT_DEDUCIBLE_ROBO = "10%";
+
+// Configuración de precios propia de cada aseguradora. Los campos con valor
+// común por defecto (recargos, deducibles) son opcionales.
+export type InsurerPricing = Pick<
+  PricingConfig,
+  "factorBase" | "derechos" | "rcSumaAsegurada" | "gastosMedicos"
+> &
+  Partial<PricingConfig>;
+
+// Construye un adaptador que usa la cotización simulada (`cotizarMock`) con la
+// configuración de precios de la aseguradora, aplicando los valores por
+// defecto compartidos. Cada aseguradora reemplazará este adaptador por la
+// integración real a su web service cuando tenga credenciales.
+export function createMockAdapter(config: {
+  id: string;
+  nombre: string;
+  descuentoDefault: number;
+  pricing: InsurerPricing;
+}): InsurerAdapter {
+  const cfg: PricingConfig = {
+    recargoFraccionado: DEFAULT_RECARGO_FRACCIONADO,
+    deducibleDanos: DEFAULT_DEDUCIBLE_DANOS,
+    deducibleRobo: DEFAULT_DEDUCIBLE_ROBO,
+    ...config.pricing,
+  };
+  return {
+    id: config.id,
+    nombre: config.nombre,
+    descuentoDefault: config.descuentoDefault,
+    cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
+      return cotizarMock(
+        this.id,
+        this.nombre,
+        cfg,
+        request,
+        resolverDescuento(request, this.id, this.descuentoDefault),
+      );
+    },
   };
 }

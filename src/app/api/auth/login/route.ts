@@ -4,37 +4,31 @@ import { buscarUsuarioPorEmail, verifyPassword } from "@/lib/auth";
 import { crearToken, COOKIE_SESION, MAX_AGE_SESION } from "@/lib/session";
 import { registrarActividad } from "@/lib/activity";
 import type { Rol } from "@/domain/admin";
+import { jsonError, parseJsonBody } from "@/lib/http";
 
 export async function POST(req: Request) {
-  let body: { email?: string; password?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseJsonBody<{
+    email?: string;
+    password?: string;
+  }>(req);
+  if (bodyError) return bodyError;
 
   const email = (body.email ?? "").trim().toLowerCase();
   const password = body.password ?? "";
   if (!email || !password) {
-    return NextResponse.json(
-      { error: "Correo y contraseña son obligatorios." },
-      { status: 400 },
-    );
+    return jsonError("Correo y contraseña son obligatorios.", 400);
   }
 
   const row = buscarUsuarioPorEmail(email);
   const ok = row ? await verifyPassword(password, row.password_hash) : false;
 
   if (!row || !ok) {
-    return NextResponse.json(
-      { error: "Correo o contraseña incorrectos." },
-      { status: 401 },
-    );
+    return jsonError("Correo o contraseña incorrectos.", 401);
   }
   if (row.activo !== 1) {
-    return NextResponse.json(
-      { error: "Tu cuenta está desactivada. Contacta al administrador." },
-      { status: 403 },
+    return jsonError(
+      "Tu cuenta está desactivada. Contacta al administrador.",
+      403,
     );
   }
 

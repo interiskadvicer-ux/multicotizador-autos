@@ -38,12 +38,28 @@ export function registrarActividad(
   }
 }
 
-export function listarActividad(filtros?: {
+export interface FiltrosActividad {
   usuarioId?: number;
   desde?: string;
   hasta?: string;
   limite?: number;
-}): RegistroActividad[] {
+}
+
+// Extrae los filtros de auditoría (usuarioId, desde, hasta) desde los query
+// params de la petición.
+export function filtrosActividadDesdeUrl(req: Request): FiltrosActividad {
+  const params = new URL(req.url).searchParams;
+  const usuarioId = params.get("usuarioId");
+  const desde = params.get("desde");
+  const hasta = params.get("hasta");
+  return {
+    usuarioId: usuarioId ? Number(usuarioId) : undefined,
+    desde: desde || undefined,
+    hasta: hasta || undefined,
+  };
+}
+
+export function listarActividad(filtros?: FiltrosActividad): RegistroActividad[] {
   const condiciones: string[] = [];
   const params: (string | number)[] = [];
 

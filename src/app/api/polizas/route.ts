@@ -3,6 +3,7 @@ import { requireApiSesion } from "@/lib/api-auth";
 import { crearPoliza, listarPolizasConEstado } from "@/lib/polizas";
 import { registrarActividad } from "@/lib/activity";
 import { parsePolizaInput } from "@/lib/validate-poliza";
+import { jsonError, parseJsonBody } from "@/lib/http";
 
 export async function GET() {
   const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS"]);
@@ -15,16 +16,12 @@ export async function POST(req: Request) {
   const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS"]);
   if (error) return error;
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseJsonBody(req);
+  if (bodyError) return bodyError;
 
   const parsed = parsePolizaInput(body);
   if (parsed.error !== null) {
-    return NextResponse.json({ error: parsed.error }, { status: 422 });
+    return jsonError(parsed.error, 422);
   }
 
   const poliza = crearPoliza(parsed.data, sesion.id);

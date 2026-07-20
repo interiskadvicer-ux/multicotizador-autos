@@ -6,9 +6,8 @@ import {
   obtenerUsuario,
 } from "@/lib/auth";
 import { registrarActividad } from "@/lib/activity";
-import type { Rol } from "@/domain/admin";
-
-const ROLES_VALIDOS: Rol[] = ["ADMIN", "POLIZAS", "COTIZADOR"];
+import { ROLES_VALIDOS, type Rol } from "@/domain/admin";
+import { jsonError, parseJsonBody } from "@/lib/http";
 
 export async function PUT(
   req: Request,
@@ -20,32 +19,22 @@ export async function PUT(
   const id = Number(params.id);
   const usuario = Number.isInteger(id) ? obtenerUsuario(id) : null;
   if (!usuario) {
-    return NextResponse.json(
-      { error: "Usuario no encontrado." },
-      { status: 404 },
-    );
+    return jsonError("Usuario no encontrado.", 404);
   }
 
-  let body: {
+  const { data: body, error: bodyError } = await parseJsonBody<{
     nombre?: string;
     rol?: string;
     activo?: boolean;
     password?: string;
-  };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
-  }
+  }>(req);
+  if (bodyError) return bodyError;
 
   if (body.rol !== undefined && !ROLES_VALIDOS.includes(body.rol as Rol)) {
-    return NextResponse.json({ error: "Rol no válido." }, { status: 422 });
+    return jsonError("Rol no válido.", 422);
   }
   if (body.password !== undefined && body.password.length < 8) {
-    return NextResponse.json(
-      { error: "La contraseña debe tener al menos 8 caracteres." },
-      { status: 422 },
-    );
+    return jsonError("La contraseña debe tener al menos 8 caracteres.", 422);
   }
 
   // Evita que el administrador se quede sin acceso: no puede desactivarse
@@ -58,9 +47,9 @@ export async function PUT(
     ((body.rol !== undefined && body.rol !== "ADMIN") ||
       body.activo === false);
   if (quedariaSinAdmin) {
-    return NextResponse.json(
-      { error: "No puedes dejar el sistema sin un administrador activo." },
-      { status: 409 },
+    return jsonError(
+      "No puedes dejar el sistema sin un administrador activo.",
+      409,
     );
   }
 

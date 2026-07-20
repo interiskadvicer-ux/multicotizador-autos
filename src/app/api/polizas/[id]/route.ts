@@ -7,6 +7,7 @@ import {
 } from "@/lib/polizas";
 import { registrarActividad } from "@/lib/activity";
 import { parsePolizaInput } from "@/lib/validate-poliza";
+import { jsonError, parseJsonBody } from "@/lib/http";
 
 export async function PUT(
   req: Request,
@@ -17,25 +18,18 @@ export async function PUT(
 
   const id = Number(params.id);
   if (!Number.isInteger(id)) {
-    return NextResponse.json({ error: "Póliza no válida." }, { status: 400 });
+    return jsonError("Póliza no válida.", 400);
   }
   if (!obtenerPoliza(id)) {
-    return NextResponse.json(
-      { error: "Póliza no encontrada." },
-      { status: 404 },
-    );
+    return jsonError("Póliza no encontrada.", 404);
   }
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Solicitud inválida." }, { status: 400 });
-  }
+  const { data: body, error: bodyError } = await parseJsonBody(req);
+  if (bodyError) return bodyError;
 
   const parsed = parsePolizaInput(body);
   if (parsed.error !== null) {
-    return NextResponse.json({ error: parsed.error }, { status: 422 });
+    return jsonError(parsed.error, 422);
   }
 
   const poliza = actualizarPoliza(id, parsed.data);
@@ -57,10 +51,7 @@ export async function DELETE(
   const id = Number(params.id);
   const existente = Number.isInteger(id) ? obtenerPoliza(id) : null;
   if (!existente) {
-    return NextResponse.json(
-      { error: "Póliza no encontrada." },
-      { status: 404 },
-    );
+    return jsonError("Póliza no encontrada.", 404);
   }
 
   eliminarPoliza(id);
