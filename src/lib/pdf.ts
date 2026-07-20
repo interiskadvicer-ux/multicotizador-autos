@@ -6,7 +6,7 @@ import { formatMXN } from "./format";
 const PAQUETE_LABEL: Record<CotizacionRequest["paquete"], string> = {
   AMPLIA: "Cobertura Amplia",
   LIMITADA: "Cobertura Limitada",
-  RC: "Responsabilidad Civil",
+  RC: "Responsabilidad Civil (Básica)",
 };
 
 const FORMA_PAGO_LABEL: Record<CotizacionRequest["formaPago"], string> = {
@@ -69,13 +69,12 @@ export function generarPdfCotizacion(
     .map((r) => r.prima!.primaTotal)
     .sort((a, b) => a - b)[0];
 
+  // Tabla comparativa de precios (sin información interna de descuentos).
   const filas = exitosas.map((r) => {
     const p = r.prima!;
     const esMejor = p.primaTotal === mejorPrima;
     return [
       `${r.aseguradora}${esMejor ? "  ★" : ""}`,
-      formatMXN(p.primaNetaSinDescuento),
-      `${p.descuentoPorcentaje}%  (-${formatMXN(p.descuentoMonto)})`,
       formatMXN(p.primaNeta),
       formatMXN(p.recargoPagoFraccionado),
       formatMXN(p.derechos),
@@ -89,8 +88,6 @@ export function generarPdfCotizacion(
     head: [
       [
         "Aseguradora",
-        "Prima neta s/desc.",
-        "Descuento",
         "Prima neta",
         "Recargo pago fracc.",
         "Derechos",
@@ -104,7 +101,7 @@ export function generarPdfCotizacion(
     headStyles: { fillColor: [2, 132, 199], textColor: 255, fontSize: 8 },
     columnStyles: {
       0: { fontStyle: "bold" },
-      7: { fontStyle: "bold", textColor: [15, 23, 42] },
+      5: { fontStyle: "bold", textColor: [15, 23, 42] },
     },
     didParseCell: (data) => {
       // Resalta la fila de la mejor prima.
@@ -120,14 +117,63 @@ export function generarPdfCotizacion(
     },
   });
 
+  // Detalle de coberturas del paquete seleccionado, comparado por aseguradora.
+  const tablaPreciosY =
+    (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+      ?.finalY ?? y + 40;
+
+  if (exitosas.length > 0) {
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(
+      `Coberturas incluidas — ${PAQUETE_LABEL[request.paquete]}`,
+      margin,
+      tablaPreciosY + 10,
+    );
+
+    const coberturasBase = exitosas[0].coberturas;
+    const covFilas = coberturasBase.map((base) => {
+      const celdas = exitosas.map((r) => {
+        const cob = r.coberturas.find((x) => x.nombre === base.nombre);
+        if (!cob || !cob.incluida) return "No incluida";
+        const ded =
+          cob.deducible && cob.deducible !== "N/A"
+            ? ` (Ded. ${cob.deducible})`
+            : "";
+        return `${cob.sumaAsegurada ?? "Incluida"}${ded}`;
+      });
+      return [base.nombre, ...celdas];
+    });
+
+    autoTable(doc, {
+      startY: tablaPreciosY + 13,
+      head: [["Cobertura", ...exitosas.map((r) => r.aseguradora)]],
+      body: covFilas,
+      theme: "grid",
+      styles: { fontSize: 7, cellPadding: 1.8, textColor: [51, 65, 85] },
+      headStyles: { fillColor: [15, 118, 110], textColor: 255, fontSize: 7 },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 38 } },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index > 0) {
+          const txt = Array.isArray(data.cell.text)
+            ? data.cell.text.join(" ")
+            : String(data.cell.text);
+          if (txt.includes("No incluida")) {
+            data.cell.styles.textColor = [148, 163, 184];
+          }
+        }
+      },
+    });
+  }
+
   // Nota al pie.
   const finalY =
     (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
-      ?.finalY ?? y + 40;
+      ?.finalY ?? tablaPreciosY + 40;
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   const nota =
-    "★ Mejor precio. Primas en pesos mexicanos (MXN), vigencia 1 año. Cotización de carácter informativo, sujeta a validación y aceptación de cada aseguradora.";
+    "★ Mejor precio. Primas en pesos mexicanos (MXN), vigencia 1 año. Coberturas y sumas aseguradas de carácter informativo, sujetas a las condiciones generales de cada aseguradora y a su validación y aceptación.";
   const notaLineas = doc.splitTextToSize(nota, pageWidth - margin * 2);
   doc.text(notaLineas, margin, finalY + 8);
 
