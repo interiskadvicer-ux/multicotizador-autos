@@ -34,7 +34,9 @@ export async function verificarToken(
   token: string,
 ): Promise<SesionUsuario | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, getSecret(), {
+      algorithms: ["HS256"],
+    });
     const id = Number(payload.sub);
     const rol = payload.rol as Rol;
     if (!id || !rol) return null;
