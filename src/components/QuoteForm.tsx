@@ -9,6 +9,7 @@ import {
   PAQUETES,
 } from "@/domain/catalogs";
 import { ASEGURADORAS } from "@/insurers/registry";
+import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -25,6 +26,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [uso, setUso] = useState<"PARTICULAR" | "COMERCIAL">("PARTICULAR");
   const [valorFactura, setValorFactura] = useState("");
   const [cpVehiculo, setCpVehiculo] = useState("");
+  const [claveAmis, setClaveAmis] = useState("");
 
   const [nombre, setNombre] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
@@ -41,7 +43,46 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     ),
   );
 
+  const [buscandoCat, setBuscandoCat] = useState(false);
+  const [catError, setCatError] = useState<string | null>(null);
+  const [catResultados, setCatResultados] = useState<VehiculoQualitas[]>([]);
+
   const modelos = useMemo(() => MARCAS[marca] ?? [], [marca]);
+
+  async function buscarCatalogo() {
+    setBuscandoCat(true);
+    setCatError(null);
+    setCatResultados([]);
+    try {
+      const params = new URLSearchParams({
+        marca,
+        tipo: modelo,
+        modelo: String(anio),
+      });
+      const res = await fetch(`/api/qualitas/vehiculos?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setCatError(data.error || "No se pudo consultar el catálogo.");
+        return;
+      }
+      const vehiculos: VehiculoQualitas[] = data.vehiculos ?? [];
+      if (vehiculos.length === 0) {
+        setCatError("Sin coincidencias en el catálogo de Quálitas.");
+        return;
+      }
+      setCatResultados(vehiculos);
+    } catch {
+      setCatError("Error de red al consultar el catálogo de Quálitas.");
+    } finally {
+      setBuscandoCat(false);
+    }
+  }
+
+  function elegirVehiculo(v: VehiculoQualitas) {
+    setClaveAmis(v.claveAmis);
+    if (v.version) setVersion(v.version);
+    setCatResultados([]);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +95,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         uso,
         valorFactura: valorFactura ? Number(valorFactura) : undefined,
         cp: cpVehiculo,
+        claveAmis: claveAmis.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -162,6 +204,59 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
               placeholder="Se estima si se deja vacío"
             />
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-semibold text-amber-800">
+              Clave del vehículo Quálitas (ClaveAmis)
+            </label>
+            <button
+              type="button"
+              onClick={buscarCatalogo}
+              disabled={buscandoCat}
+              className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
+            >
+              {buscandoCat ? "Buscando…" : "Buscar en catálogo"}
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-amber-700">
+            Requerida para la cotización real de Quálitas. Si la dejas vacía,
+            Quálitas se cotiza de forma simulada (las demás aseguradoras siempre
+            son simuladas por ahora).
+          </p>
+          <input
+            className={`${inputCls} mt-2 max-w-xs`}
+            value={claveAmis}
+            onChange={(e) =>
+              setClaveAmis(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))
+            }
+            inputMode="numeric"
+            placeholder="Ej. 00465"
+          />
+          {catError && (
+            <p className="mt-2 text-xs text-rose-600">{catError}</p>
+          )}
+          {catResultados.length > 0 && (
+            <ul className="mt-2 max-h-48 divide-y divide-amber-100 overflow-auto rounded-lg border border-amber-200 bg-white">
+              {catResultados.map((v) => (
+                <li key={`${v.claveAmis}-${v.version}`}>
+                  <button
+                    type="button"
+                    onClick={() => elegirVehiculo(v)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-amber-50"
+                  >
+                    <span className="text-slate-700">
+                      {v.marcaLarga || v.marca} {v.tipo} {v.version} ({v.modelo})
+                    </span>
+                    <span className="shrink-0 font-mono text-amber-700">
+                      {v.claveAmis}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
 

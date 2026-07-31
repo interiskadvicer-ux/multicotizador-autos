@@ -18,6 +18,9 @@ export interface Vehiculo {
   uso: Uso;
   valorFactura?: number; // valor comercial estimado en MXN
   cp: string; // código postal de circulación
+  // Clave del vehículo en el catálogo de Quálitas (ClaveAmis). Requerida para
+  // la cotización real de Quálitas; opcional para el resto (simuladas).
+  claveAmis?: string;
 }
 
 export interface Conductor {
@@ -77,6 +80,11 @@ export interface CotizacionResultado {
   // Milisegundos que tardó el web service en responder (útil para monitoreo).
   tiempoRespuestaMs?: number;
   error?: string;
+  // Indica si la prima proviene de un web service real o de un cálculo
+  // simulado. Permite señalar en la UI qué cotizaciones son reales.
+  origen?: "real" | "simulado";
+  // Número de cotización devuelto por la aseguradora (cuando aplica).
+  noCotizacion?: string;
 }
 
 export interface Aseguradora {
