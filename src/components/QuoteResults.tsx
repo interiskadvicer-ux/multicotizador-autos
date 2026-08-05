@@ -95,6 +95,11 @@ function InsurerCard({
               Mejor precio
             </span>
           )}
+          {resultado.origen === "real" && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase text-indigo-700">
+              Prima real
+            </span>
+          )}
           {prima && prima.descuentoPorcentaje > 0 && (
             <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase text-sky-700">
               −{prima.descuentoPorcentaje}% desc.
