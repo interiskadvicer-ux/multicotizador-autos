@@ -1,6 +1,11 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import {
+  cotizacionRealHabilitada,
+  getBanorteConfig,
+} from "@/lib/banorte/config";
+import { cotizarBanorteReal } from "@/lib/banorte/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 1.05,
@@ -16,21 +21,29 @@ export const banorte: InsurerAdapter = {
   id: "banorte",
   nombre: "Banorte Seguros",
   descuentoDefault: 30,
+  // Cotizar + recalcular con descuento son dos llamadas secuenciales de ~10 s
+  // cada una en el ambiente de Banorte.
+  timeoutMs: 60_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // Banorte Seguros (REST/JSON). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.BANORTE_WS_URL / BANORTE_WS_USER / BANORTE_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de Banorte Seguros).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
-      this.id,
-      this.nombre,
-      cfg,
-      request,
-      resolverDescuento(request, this.id, this.descuentoDefault),
-    );
+    const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
+    const claveBanorte = request.vehiculo.claveBanorte?.trim();
+
+    // Cotización real vía servicios REST cuando está habilitada y el vehículo
+    // trae su clave del catálogo de Banorte. Si no, se usa la simulación para
+    // no bloquear el resto del multicotizador.
+    if (cotizacionRealHabilitada() && claveBanorte) {
+      const cfgB = getBanorteConfig();
+      const descReal = Math.min(descuento, cfgB.descuentoDefault);
+      return cotizarBanorteReal(
+        this.id,
+        this.nombre,
+        request,
+        descReal,
+        claveBanorte,
+      );
+    }
+
+    const mock = await cotizarMock(this.id, this.nombre, cfg, request, descuento);
+    return { ...mock, origen: "simulado" };
   },
 };
