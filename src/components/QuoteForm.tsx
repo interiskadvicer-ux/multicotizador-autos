@@ -10,10 +10,19 @@ import {
 } from "@/domain/catalogs";
 import { ASEGURADORAS } from "@/insurers/registry";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
+import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
   cargando: boolean;
+}
+
+// Opción de vehículo normalizada: cada aseguradora tiene su propio catálogo y
+// su propia clave, pero en la UI se eligen igual.
+interface OpcionVehiculo {
+  clave: string;
+  etiqueta: string;
+  version?: string;
 }
 
 const marcas = Object.keys(MARCAS);
@@ -43,45 +52,99 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     ),
   );
 
-  const [buscandoCat, setBuscandoCat] = useState(false);
-  const [catError, setCatError] = useState<string | null>(null);
-  const [catResultados, setCatResultados] = useState<VehiculoQualitas[]>([]);
+  const [claveBanorte, setClaveBanorte] = useState("");
+
+  const [catBuscando, setCatBuscando] = useState<"" | "qualitas" | "banorte">(
+    "",
+  );
+  const [catError, setCatError] = useState<Record<string, string>>({});
+  const [catResultados, setCatResultados] = useState<
+    Record<string, OpcionVehiculo[]>
+  >({});
 
   const modelos = useMemo(() => MARCAS[marca] ?? [], [marca]);
 
-  async function buscarCatalogo() {
-    setBuscandoCat(true);
-    setCatError(null);
-    setCatResultados([]);
+  async function buscarCatalogo(
+    aseguradora: "qualitas" | "banorte",
+    nombre: string,
+    url: string,
+    normalizar: (data: { vehiculos?: unknown[] }) => OpcionVehiculo[],
+  ) {
+    setCatBuscando(aseguradora);
+    setCatError((e) => ({ ...e, [aseguradora]: "" }));
+    setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
     try {
-      const params = new URLSearchParams({
-        marca,
-        tipo: modelo,
-        modelo: String(anio),
-      });
-      const res = await fetch(`/api/qualitas/vehiculos?${params.toString()}`);
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
-        setCatError(data.error || "No se pudo consultar el catálogo.");
+        setCatError((e) => ({
+          ...e,
+          [aseguradora]: data.error || "No se pudo consultar el catálogo.",
+        }));
         return;
       }
-      const vehiculos: VehiculoQualitas[] = data.vehiculos ?? [];
-      if (vehiculos.length === 0) {
-        setCatError("Sin coincidencias en el catálogo de Quálitas.");
+      const opciones = normalizar(data);
+      if (opciones.length === 0) {
+        setCatError((e) => ({
+          ...e,
+          [aseguradora]: `Sin coincidencias en el catálogo de ${nombre}.`,
+        }));
         return;
       }
-      setCatResultados(vehiculos);
+      setCatResultados((r) => ({ ...r, [aseguradora]: opciones }));
     } catch {
-      setCatError("Error de red al consultar el catálogo de Quálitas.");
+      setCatError((e) => ({
+        ...e,
+        [aseguradora]: `Error de red al consultar el catálogo de ${nombre}.`,
+      }));
     } finally {
-      setBuscandoCat(false);
+      setCatBuscando("");
     }
   }
 
-  function elegirVehiculo(v: VehiculoQualitas) {
-    setClaveAmis(v.claveAmis);
-    if (v.version) setVersion(v.version);
-    setCatResultados([]);
+  function buscarQualitas() {
+    const params = new URLSearchParams({
+      marca,
+      tipo: modelo,
+      modelo: String(anio),
+    });
+    return buscarCatalogo(
+      "qualitas",
+      "Quálitas",
+      `/api/qualitas/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoQualitas[]).map((v) => ({
+          clave: v.claveAmis,
+          etiqueta: `${v.marcaLarga || v.marca} ${v.tipo} ${v.version} (${v.modelo})`,
+          version: v.version,
+        })),
+    );
+  }
+
+  function buscarBanorte() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "banorte",
+      "Banorte",
+      `/api/banorte/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoBanorte[]).map((v) => ({
+          clave: v.claveBanorte,
+          etiqueta: `${v.marca} ${v.submarca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
+  function elegirVehiculo(aseguradora: "qualitas" | "banorte", v: OpcionVehiculo) {
+    if (aseguradora === "qualitas") setClaveAmis(v.clave);
+    else setClaveBanorte(v.clave);
+    if (v.version && !version) setVersion(v.version);
+    setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -96,6 +159,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         valorFactura: valorFactura ? Number(valorFactura) : undefined,
         cp: cpVehiculo,
         claveAmis: claveAmis.trim() || undefined,
+        claveBanorte: claveBanorte.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -207,56 +271,83 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <label className="text-xs font-semibold text-amber-800">
-              Clave del vehículo Quálitas (ClaveAmis)
-            </label>
-            <button
-              type="button"
-              onClick={buscarCatalogo}
-              disabled={buscandoCat}
-              className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
-            >
-              {buscandoCat ? "Buscando…" : "Buscar en catálogo"}
-            </button>
-          </div>
-          <p className="mt-1 text-[11px] text-amber-700">
-            Requerida para la cotización real de Quálitas. Si la dejas vacía,
-            Quálitas se cotiza de forma simulada (las demás aseguradoras siempre
-            son simuladas por ahora).
+          <p className="text-xs font-semibold text-amber-800">
+            Claves del vehículo por aseguradora
           </p>
-          <input
-            className={`${inputCls} mt-2 max-w-xs`}
-            value={claveAmis}
-            onChange={(e) =>
-              setClaveAmis(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))
-            }
-            inputMode="numeric"
-            placeholder="Ej. 00465"
-          />
-          {catError && (
-            <p className="mt-2 text-xs text-rose-600">{catError}</p>
-          )}
-          {catResultados.length > 0 && (
-            <ul className="mt-2 max-h-48 divide-y divide-amber-100 overflow-auto rounded-lg border border-amber-200 bg-white">
-              {catResultados.map((v) => (
-                <li key={`${v.claveAmis}-${v.version}`}>
+          <p className="mt-1 text-[11px] text-amber-700">
+            Cada aseguradora identifica el vehículo con su propia clave y la
+            necesita para cotizar en real. Busca en su catálogo y elige la
+            versión: la clave se llena sola. Si la dejas vacía, esa aseguradora
+            se cotiza de forma simulada.
+          </p>
+
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {(
+              [
+                {
+                  id: "qualitas" as const,
+                  etiqueta: "Quálitas (ClaveAmis)",
+                  valor: claveAmis,
+                  onChange: (v: string) =>
+                    setClaveAmis(v.replace(/[^0-9]/g, "").slice(0, 6)),
+                  placeholder: "Ej. 00465",
+                  buscar: buscarQualitas,
+                },
+                {
+                  id: "banorte" as const,
+                  etiqueta: "Banorte (claveBanorte)",
+                  valor: claveBanorte,
+                  onChange: (v: string) =>
+                    setClaveBanorte(v.toUpperCase().slice(0, 10)),
+                  placeholder: "Ej. NI370",
+                  buscar: buscarBanorte,
+                },
+              ] as const
+            ).map((c) => (
+              <div key={c.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-medium text-amber-900">
+                    {c.etiqueta}
+                  </label>
                   <button
                     type="button"
-                    onClick={() => elegirVehiculo(v)}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-amber-50"
+                    onClick={c.buscar}
+                    disabled={catBuscando !== ""}
+                    className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
                   >
-                    <span className="text-slate-700">
-                      {v.marcaLarga || v.marca} {v.tipo} {v.version} ({v.modelo})
-                    </span>
-                    <span className="shrink-0 font-mono text-amber-700">
-                      {v.claveAmis}
-                    </span>
+                    {catBuscando === c.id ? "Buscando…" : "Buscar en catálogo"}
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                </div>
+                <input
+                  className={`${inputCls} mt-2`}
+                  value={c.valor}
+                  onChange={(e) => c.onChange(e.target.value)}
+                  placeholder={c.placeholder}
+                />
+                {catError[c.id] && (
+                  <p className="mt-2 text-xs text-rose-600">{catError[c.id]}</p>
+                )}
+                {(catResultados[c.id]?.length ?? 0) > 0 && (
+                  <ul className="mt-2 max-h-48 divide-y divide-amber-100 overflow-auto rounded-lg border border-amber-200 bg-white">
+                    {catResultados[c.id].map((v) => (
+                      <li key={`${v.clave}-${v.etiqueta}`}>
+                        <button
+                          type="button"
+                          onClick={() => elegirVehiculo(c.id, v)}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-amber-50"
+                        >
+                          <span className="text-slate-700">{v.etiqueta}</span>
+                          <span className="shrink-0 font-mono text-amber-700">
+                            {v.clave}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
