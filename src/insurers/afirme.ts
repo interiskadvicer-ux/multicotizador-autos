@@ -1,6 +1,11 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import {
+  cotizacionRealHabilitada,
+  getAfirmeConfig,
+} from "@/lib/afirme/config";
+import { cotizarAfirmeReal } from "@/lib/afirme/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 0.93,
@@ -15,22 +20,27 @@ const cfg: PricingConfig = {
 export const afirme: InsurerAdapter = {
   id: "afirme",
   nombre: "Afirme Seguros",
-  descuentoDefault: 30,
+  descuentoDefault: 25,
+  // Catálogo + ubicación + paquetes + dos cotizaciones (con y sin descuento).
+  timeoutMs: 45_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // Afirme Seguros (REST/JSON). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.AFIRME_WS_URL / AFIRME_WS_USER / AFIRME_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de Afirme Seguros).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
-      this.id,
-      this.nombre,
-      cfg,
-      request,
-      resolverDescuento(request, this.id, this.descuentoDefault),
-    );
+    const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
+    const claveAfirme = request.vehiculo.claveAfirme?.trim();
+
+    // Cotización real vía Midas Autos cuando está habilitada y el vehículo
+    // trae su idEstilo del catálogo de Afirme; si no, simulación.
+    if (cotizacionRealHabilitada() && claveAfirme) {
+      const cfgA = getAfirmeConfig();
+      return cotizarAfirmeReal(
+        this.id,
+        this.nombre,
+        request,
+        Math.min(descuento, cfgA.descuentoDefault),
+        claveAfirme,
+      );
+    }
+
+    const mock = await cotizarMock(this.id, this.nombre, cfg, request, descuento);
+    return { ...mock, origen: "simulado" };
   },
 };
