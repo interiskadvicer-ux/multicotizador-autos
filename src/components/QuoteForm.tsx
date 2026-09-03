@@ -11,6 +11,9 @@ import {
 import { ASEGURADORAS } from "@/insurers/registry";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
+import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
+
+type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -53,10 +56,9 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   );
 
   const [claveBanorte, setClaveBanorte] = useState("");
+  const [claveAfirme, setClaveAfirme] = useState("");
 
-  const [catBuscando, setCatBuscando] = useState<"" | "qualitas" | "banorte">(
-    "",
-  );
+  const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
   const [catError, setCatError] = useState<Record<string, string>>({});
   const [catResultados, setCatResultados] = useState<
     Record<string, OpcionVehiculo[]>
@@ -65,7 +67,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const modelos = useMemo(() => MARCAS[marca] ?? [], [marca]);
 
   async function buscarCatalogo(
-    aseguradora: "qualitas" | "banorte",
+    aseguradora: AseguradoraCatalogo,
     nombre: string,
     url: string,
     normalizar: (data: { vehiculos?: unknown[] }) => OpcionVehiculo[],
@@ -140,9 +142,29 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
-  function elegirVehiculo(aseguradora: "qualitas" | "banorte", v: OpcionVehiculo) {
+  function buscarAfirme() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "afirme",
+      "Afirme",
+      `/api/afirme/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoAfirme[]).map((v) => ({
+          clave: v.idEstilo,
+          etiqueta: `${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
+  function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
-    else setClaveBanorte(v.clave);
+    else if (aseguradora === "banorte") setClaveBanorte(v.clave);
+    else setClaveAfirme(v.clave);
     if (v.version && !version) setVersion(v.version);
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
@@ -160,6 +182,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         cp: cpVehiculo,
         claveAmis: claveAmis.trim() || undefined,
         claveBanorte: claveBanorte.trim() || undefined,
+        claveAfirme: claveAfirme.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -281,7 +304,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             se cotiza de forma simulada.
           </p>
 
-          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
             {(
               [
                 {
@@ -301,6 +324,15 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                     setClaveBanorte(v.toUpperCase().slice(0, 10)),
                   placeholder: "Ej. NI370",
                   buscar: buscarBanorte,
+                },
+                {
+                  id: "afirme" as const,
+                  etiqueta: "Afirme (idEstilo)",
+                  valor: claveAfirme,
+                  onChange: (v: string) =>
+                    setClaveAfirme(v.replace(/[^0-9]/g, "").slice(0, 8)),
+                  placeholder: "Ej. 109931",
+                  buscar: buscarAfirme,
                 },
               ] as const
             ).map((c) => (

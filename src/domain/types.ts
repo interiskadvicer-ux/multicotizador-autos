@@ -24,6 +24,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de Banorte. Requerida para la cotización
   // real de Banorte.
   claveBanorte?: string;
+  // idEstilo del vehículo en el catálogo de Afirme (Midas Autos). Requerido
+  // para la cotización real de Afirme.
+  claveAfirme?: string;
 }
 
 export interface Conductor {

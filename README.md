@@ -75,7 +75,8 @@ src/
     base.ts         # Generador de cotización simulada (reemplazable)
     qualitas.ts     # Un adaptador por aseguradora
     banorte.ts
-    hdi.ts  zurich.ts  gnp.ts  elpotosi.ts  afirme.ts  atlas.ts
+    afirme.ts
+    hdi.ts  zurich.ts  gnp.ts  elpotosi.ts  atlas.ts
     registry.ts     # Registro central de aseguradoras
   lib/
     quote-service.ts # Consulta a TODAS en paralelo (con timeout y manejo de error)
@@ -93,6 +94,13 @@ aseguradora nueva = crear un archivo en `src/insurers/` + registrarlo en
 `registry.ts`. Nada más cambia.
 
 ## Integración real
+
+Integradas hoy (cotizan contra el web service cuando el vehículo trae su
+clave; sin clave caen a simulado): **Quálitas** (`claveAmis`), **Banorte**
+(`claveBanorte`) y **Afirme** (`claveAfirme` = idEstilo de Midas Autos; token
+REST + SOAP, ver `src/lib/afirme/`). Afirme limita el descuento al tope del
+agente (25 % en el negocio actual) y no admite descuento en el paquete RC; el
+adaptador reintenta con el descuento que sí acepta.
 
 Cada aseguradora expone su propio web service (SOAP o REST) con catálogos y
 formatos distintos. Para conectar uno:
