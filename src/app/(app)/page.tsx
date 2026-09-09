@@ -3,7 +3,11 @@
 import { useState } from "react";
 import QuoteForm from "@/components/QuoteForm";
 import QuoteResults from "@/components/QuoteResults";
-import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
+import type {
+  CoberturasPersonalizadas,
+  CotizacionRequest,
+  CotizacionResultado,
+} from "@/domain/types";
 import { ASEGURADORAS } from "@/insurers/registry";
 
 function descuentosIniciales(): Record<string, number> {
@@ -38,10 +42,18 @@ export default function Home() {
     useState<Record<string, number>>(descuentosIniciales);
   const [cargando, setCargando] = useState(false);
   const [recotizando, setRecotizando] = useState<string | null>(null);
+  const [coberturas, setCoberturas] = useState<CoberturasPersonalizadas>({});
+  const [recotizandoTodo, setRecotizandoTodo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function cotizar(request: CotizacionRequest) {
-    const completa: CotizacionRequest = { ...request, descuentos };
+    const completa: CotizacionRequest = {
+      ...request,
+      descuentos,
+      coberturasPersonalizadas: Object.keys(coberturas).length
+        ? coberturas
+        : undefined,
+    };
     setCargando(true);
     setError(null);
     setResultados(null);
@@ -93,6 +105,29 @@ export default function Home() {
     }
   }
 
+  // Recotiza las 8 aseguradoras con nuevas sumas aseguradas / deducibles,
+  // conservando la comparativa anterior en pantalla mientras responde.
+  async function recotizarCoberturas(nuevas: CoberturasPersonalizadas) {
+    if (!ultimaSolicitud) return;
+    const request: CotizacionRequest = {
+      ...ultimaSolicitud,
+      descuentos,
+      aseguradoras: undefined,
+      coberturasPersonalizadas: Object.keys(nuevas).length ? nuevas : undefined,
+    };
+    setCoberturas(nuevas);
+    setUltimaSolicitud(request);
+    setRecotizandoTodo(true);
+    setError(null);
+    try {
+      setResultados(await pedirCotizacion(request));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setRecotizandoTodo(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <header className="mb-8">
@@ -138,6 +173,9 @@ export default function Home() {
             descuentos={descuentos}
             recotizando={recotizando}
             onRecotizar={recotizar}
+            coberturas={coberturas}
+            recotizandoTodo={recotizandoTodo}
+            onCoberturas={recotizarCoberturas}
           />
         </div>
       )}

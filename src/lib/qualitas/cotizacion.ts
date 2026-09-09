@@ -129,6 +129,32 @@ function construirCoberturasDesdeRespuesta(
   });
 }
 
+// Coberturas personalizadas -> nodos <Coberturas> del XML de Quálitas. Sólo se
+// envían las coberturas que aplican al paquete (DM sólo en Amplia, RT y GMO en
+// Amplia/Limitada) para no alterar la composición del paquete.
+function xmlCoberturasPersonalizadas(request: CotizacionRequest): string {
+  const cob = request.coberturasPersonalizadas;
+  if (!cob) return "";
+  const paquete = request.paquete;
+  const nodo = (no: string, suma: string, tipoSuma: string, deducible: string) =>
+    `<Coberturas NoCobertura="${no}"><SumaAsegurada>${suma}</SumaAsegurada>` +
+    `<TipoSuma>${tipoSuma}</TipoSuma><Deducible>${deducible}</Deducible><Prima/></Coberturas>`;
+  let xml = "";
+  if (paquete === "AMPLIA" && cob.deducibleDanosMateriales !== undefined) {
+    xml += nodo("1", "0", "3", String(cob.deducibleDanosMateriales));
+  }
+  if (paquete !== "RC" && cob.deducibleRoboTotal !== undefined) {
+    xml += nodo("3", "0", "3", String(cob.deducibleRoboTotal));
+  }
+  if (cob.responsabilidadCivil !== undefined) {
+    xml += nodo("4", String(cob.responsabilidadCivil), "0", "0");
+  }
+  if (paquete !== "RC" && cob.gastosMedicos !== undefined) {
+    xml += nodo("5", String(cob.gastosMedicos), "0", "0");
+  }
+  return xml;
+}
+
 function construirXmlCotizacion(
   request: CotizacionRequest,
   descuento: number,
@@ -160,7 +186,9 @@ function construirXmlCotizacion(
     "<DescripcionVehiculo/>" +
     "<Uso>01</Uso><Servicio>01</Servicio>" +
     `<Paquete>${paquete}</Paquete>` +
-    "<Motor/><Serie/></DatosVehiculo>" +
+    "<Motor/><Serie/>" +
+    xmlCoberturasPersonalizadas(request) +
+    "</DatosVehiculo>" +
     "<DatosGenerales>" +
     `<FechaEmision>${fechaISO(inicio)}</FechaEmision>` +
     `<FechaInicio>${fechaISO(inicio)}</FechaInicio>` +
