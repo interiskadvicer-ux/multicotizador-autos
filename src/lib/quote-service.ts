@@ -1,4 +1,8 @@
-import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
+import type {
+  CotizacionRequest,
+  CotizacionResultado,
+  Paquete,
+} from "@/domain/types";
 import { ADAPTERS } from "@/insurers/registry";
 
 const TIMEOUT_MS = 15_000;
@@ -32,8 +36,12 @@ function withTimeout(
 export async function cotizarTodas(
   request: CotizacionRequest,
 ): Promise<CotizacionResultado[]> {
+  const filtro = request.aseguradoras;
+  const adapters = filtro?.length
+    ? ADAPTERS.filter((a) => filtro.includes(a.id))
+    : ADAPTERS;
   const resultados = await Promise.all(
-    ADAPTERS.map(async (adapter) => {
+    adapters.map(async (adapter) => {
       try {
         return await withTimeout(
           adapter.id,
@@ -63,4 +71,18 @@ export async function cotizarTodas(
     const pb = b.prima?.primaTotal ?? Infinity;
     return pa - pb;
   });
+}
+
+// Cotiza cada paquete solicitado (`paquetes`, o solo `paquete`) con todas las
+// aseguradoras. Devuelve la lista plana; cada resultado trae su `paquete`.
+export async function cotizarPaquetes(
+  request: CotizacionRequest,
+): Promise<CotizacionResultado[]> {
+  const paquetes: Paquete[] = request.paquetes?.length
+    ? Array.from(new Set(request.paquetes))
+    : [request.paquete];
+  const porPaquete = await Promise.all(
+    paquetes.map((paquete) => cotizarTodas({ ...request, paquete })),
+  );
+  return porPaquete.flat();
 }
