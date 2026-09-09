@@ -41,7 +41,13 @@ export interface Conductor {
 export interface CotizacionRequest {
   vehiculo: Vehiculo;
   conductor: Conductor;
+  // Paquete principal (compatibilidad). Si se envía `paquetes`, se cotizan
+  // todos los indicados y este campo solo se usa como valor por defecto.
   paquete: Paquete;
+  paquetes?: Paquete[];
+  // Limita la cotización a estas aseguradoras (p. ej. para recotizar una
+  // sola fila con otro descuento). Si se omite, se consultan todas.
+  aseguradoras?: string[];
   formaPago: FormaPago;
   // Descuento (%) a aplicar por aseguradora: { [aseguradoraId]: porcentaje }.
   // Cada aseguradora ofrece un descuento comercial distinto; el broker puede

@@ -1,14 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CotizacionRequest, Paquete } from "@/domain/types";
-import {
-  ANIOS,
-  FORMAS_PAGO,
-  MARCAS,
-  PAQUETES,
-} from "@/domain/catalogs";
-import { ASEGURADORAS } from "@/insurers/registry";
+import type { CotizacionRequest } from "@/domain/types";
+import { ANIOS, FORMAS_PAGO, MARCAS, PAQUETES } from "@/domain/catalogs";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
@@ -46,14 +40,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
 
-  const [paquete, setPaquete] = useState<Paquete>("AMPLIA");
   const [formaPago, setFormaPago] = useState(FORMAS_PAGO[0].value);
-
-  const [descuentos, setDescuentos] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      ASEGURADORAS.map((a) => [a.id, String(a.descuentoDefault)]),
-    ),
-  );
 
   const [claveBanorte, setClaveBanorte] = useState("");
   const [claveAfirme, setClaveAfirme] = useState("");
@@ -192,14 +179,9 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         email: email || undefined,
         telefono: telefono || undefined,
       },
-      paquete,
+      paquete: "AMPLIA",
+      paquetes: PAQUETES.map((p) => p.value),
       formaPago,
-      descuentos: Object.fromEntries(
-        Object.entries(descuentos).map(([id, v]) => {
-          const n = Number(v);
-          return [id, Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) : 0];
-        }),
-      ),
     };
     onCotizar(request);
   }
@@ -456,28 +438,14 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-sky-700">
-          Cobertura
+          Cobertura y pago
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {PAQUETES.map((p) => (
-            <button
-              type="button"
-              key={p.value}
-              onClick={() => setPaquete(p.value)}
-              className={`rounded-xl border p-3 text-left transition ${
-                paquete === p.value
-                  ? "border-sky-500 bg-sky-50 ring-2 ring-sky-200"
-                  : "border-slate-200 bg-white hover:border-slate-300"
-              }`}
-            >
-              <div className="text-sm font-semibold text-slate-800">
-                {p.label}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">{p.descripcion}</div>
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 max-w-xs">
+        <p className="mb-3 text-xs text-slate-500">
+          Se cotizan los tres paquetes (Amplia, Limitada y Básica) con todas las
+          aseguradoras. El descuento por aseguradora se ajusta en el
+          comparativo.
+        </p>
+        <div className="max-w-xs">
           <label className={labelCls}>Forma de pago</label>
           <select
             className={inputCls}
@@ -492,40 +460,6 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
               </option>
             ))}
           </select>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-sky-700">
-          Descuentos por aseguradora
-        </h2>
-        <p className="mb-3 text-xs text-slate-500">
-          Ajusta el % de descuento comercial que aplica cada aseguradora. Se
-          descuenta de la prima neta.
-        </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {ASEGURADORAS.map((a) => (
-            <div key={a.id}>
-              <label className={labelCls}>{a.nombre}</label>
-              <div className="relative">
-                <input
-                  className={`${inputCls} pr-7`}
-                  value={descuentos[a.id] ?? ""}
-                  onChange={(e) =>
-                    setDescuentos((prev) => ({
-                      ...prev,
-                      [a.id]: e.target.value.replace(/[^0-9]/g, "").slice(0, 3),
-                    }))
-                  }
-                  inputMode="numeric"
-                  placeholder="0"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
-                  %
-                </span>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 
