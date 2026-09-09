@@ -10,6 +10,7 @@ import type {
   FormaPago,
   Paquete,
 } from "@/domain/types";
+import { acotar, masCercano } from "@/lib/coberturas";
 import { credencialesConfiguradas, getAfirmeConfig } from "./config";
 import { AfirmeError, AfirmeNoConfigurado, llamarAfirme } from "./client";
 import { resolverVehiculo, type VehiculoAfirme } from "./catalogos";
@@ -62,6 +63,28 @@ interface CoberturaAfirme {
   sumaAsegurada?: string | number;
   deducible?: number | string;
   primaNeta?: number;
+}
+
+// Cobertura configurable devuelta por `obtenerCoberturas`.
+interface CoberturaConfigurable {
+  idCobertura: number;
+  obligatoriedad?: number;
+  contratada?: boolean;
+  descripcion?: string;
+  sumaAsegurada?: string | number;
+  sumaAseguradaMin?: string | number;
+  sumaAseguradaMax?: string | number;
+  deducible?: number | string;
+  valoresDeducible?: Array<string | number> | Record<string, string | number>;
+}
+
+// Cobertura tal como la espera `cotizarPoliza` en su lista `coberturas`.
+interface CoberturaEnvio {
+  idCobertura: number;
+  obligatoriedad: number;
+  contratada: boolean;
+  sumaAsegurada: string | number;
+  deducible: number;
 }
 
 interface RespuestaCotizacion {
@@ -144,12 +167,109 @@ async function paqueteAfirme(
   return encontrado[0];
 }
 
+function numero(v: string | number | undefined): number | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+// Consulta las coberturas del paquete y aplica las personalizadas del broker,
+// respetando los rangos de suma asegurada y los deducibles que admite Afirme.
+async function coberturasPersonalizadasAfirme(
+  request: CotizacionRequest,
+  vehiculo: VehiculoAfirme,
+  ubicacion: Ubicacion,
+  idPaquete: string,
+  ajustes: string[],
+): Promise<CoberturaEnvio[] | undefined> {
+  const cob = request.coberturasPersonalizadas;
+  if (!cob) return undefined;
+  const cfg = getAfirmeConfig();
+  const lista = await llamarAfirme<CoberturaConfigurable[]>("obtenerCoberturas", {
+    cotizacionCobertura: JSON.stringify({
+      IdNegocio: cfg.idNegocio,
+      idProducto: cfg.idProducto,
+      idTipoPoliza: cfg.idTipoPoliza,
+      idLineaNegocio: vehiculo.idLineaNegocio,
+      idPaquete,
+      idEstadoCirculacion: ubicacion.stateId,
+      idMunicipioCirculacion: ubicacion.cityId,
+      estilo: vehiculo.idEstilo,
+      modelo: vehiculo.anio,
+    }),
+  });
+  if (!Array.isArray(lista) || !lista.length) return undefined;
+
+  let cambio = false;
+  const envio = lista.map((c): CoberturaEnvio => {
+    const desc = (c.descripcion ?? "").toUpperCase();
+    let sumaAsegurada: string | number = c.sumaAsegurada ?? "";
+    let deducible = numero(c.deducible) ?? 0;
+
+    const ajustarSuma = (
+      clave: "responsabilidadCivil" | "gastosMedicos",
+      solicitado: number,
+    ) => {
+      const v = acotar(
+        clave,
+        solicitado,
+        numero(c.sumaAseguradaMin),
+        numero(c.sumaAseguradaMax),
+        ajustes,
+      );
+      if (v !== numero(c.sumaAsegurada)) cambio = true;
+      sumaAsegurada = String(v);
+    };
+    const ajustarDeducible = (
+      clave: "deducibleDanosMateriales" | "deducibleRoboTotal",
+      solicitado: number,
+    ) => {
+      const crudos = c.valoresDeducible ?? [];
+      const opciones = (Array.isArray(crudos) ? crudos : Object.values(crudos))
+        .map(numero)
+        .filter((n): n is number => n !== undefined);
+      const v = masCercano(clave, solicitado, opciones, ajustes);
+      if (v !== deducible) cambio = true;
+      deducible = v;
+    };
+
+    if (
+      /^RESPONSABILIDAD CIVIL DAÑOS A TERCEROS/.test(desc) &&
+      cob.responsabilidadCivil !== undefined
+    ) {
+      ajustarSuma("responsabilidadCivil", cob.responsabilidadCivil);
+    } else if (
+      /^GASTOS M[EÉ]DICOS OCUPANTES/.test(desc) &&
+      cob.gastosMedicos !== undefined
+    ) {
+      ajustarSuma("gastosMedicos", cob.gastosMedicos);
+    } else if (
+      /^DAÑOS MATERIALES/.test(desc) &&
+      cob.deducibleDanosMateriales !== undefined
+    ) {
+      ajustarDeducible("deducibleDanosMateriales", cob.deducibleDanosMateriales);
+    } else if (/^ROBO TOTAL/.test(desc) && cob.deducibleRoboTotal !== undefined) {
+      ajustarDeducible("deducibleRoboTotal", cob.deducibleRoboTotal);
+    }
+
+    return {
+      idCobertura: c.idCobertura,
+      obligatoriedad: c.obligatoriedad ?? 0,
+      contratada: c.contratada ?? true,
+      sumaAsegurada,
+      deducible,
+    };
+  });
+  return cambio ? envio : undefined;
+}
+
 function cuerpoCotizacion(
   request: CotizacionRequest,
   vehiculo: VehiculoAfirme,
   ubicacion: Ubicacion,
   idPaquete: string,
   descuento: number,
+  coberturas: CoberturaEnvio[] | undefined,
 ): string {
   const cfg = getAfirmeConfig();
   return JSON.stringify({
@@ -180,6 +300,7 @@ function cuerpoCotizacion(
       idFormaPago: FORMA_PAGO_AFIRME[request.formaPago],
       pctDescuentoEstado: descuento,
     },
+    ...(coberturas ? { coberturas } : {}),
     asegurado: {
       edadAsegurado: String(edad(request.conductor.fechaNacimiento)),
       generoAsegurado: request.conductor.genero,
@@ -265,8 +386,16 @@ export async function cotizarAfirmeReal(
     }
 
     const idPaquete = await paqueteAfirme(vehiculo, request.paquete);
+    const ajustes: string[] = [];
+    const personalizadas = await coberturasPersonalizadasAfirme(
+      request,
+      vehiculo,
+      ubicacion,
+      idPaquete,
+      ajustes,
+    );
     const construir = (d: number) =>
-      cuerpoCotizacion(request, vehiculo, ubicacion, idPaquete, d);
+      cuerpoCotizacion(request, vehiculo, ubicacion, idPaquete, d, personalizadas);
 
     // La prima de lista (0 %) se pide en paralelo para mostrar el desglose del
     // descuento; Afirme siempre reporta `descuentos: 0` en la respuesta.
@@ -304,6 +433,7 @@ export async function cotizarAfirmeReal(
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",
       noCotizacion: data.idToCotizacion ? String(data.idToCotizacion) : undefined,
+      ajustes: ajustes.length ? ajustes : undefined,
     };
   } catch (err) {
     return {

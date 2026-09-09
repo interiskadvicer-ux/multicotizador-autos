@@ -10,6 +10,7 @@ import type {
   DesglosePrima,
   Paquete,
 } from "@/domain/types";
+import { masCercano } from "@/lib/coberturas";
 import { credencialesConfiguradas, getBanorteConfig } from "./config";
 import { BanorteError, BanorteNoConfigurado, llamarBanorte } from "./client";
 
@@ -50,6 +51,8 @@ interface ItemCobertura {
   montoSumaAsegurada?: number;
   leyendaDeducible?: string;
   montoDeducible?: number;
+  sumasAseguradas?: Array<{ valor?: number }>;
+  deducibles?: Array<{ valor?: number; unidad?: string }>;
 }
 
 interface ResumenCotizacion {
@@ -161,6 +164,84 @@ function coberturas(items: ItemCobertura[]): Cobertura[] {
   });
 }
 
+function opciones(lista: Array<{ valor?: number }> | undefined): number[] {
+  return (lista ?? [])
+    .map((o) => o.valor)
+    .filter((v): v is number => typeof v === "number");
+}
+
+// Aplica las coberturas personalizadas sobre los ítems devueltos por Banorte.
+// Banorte rechaza valores fuera de su catálogo, así que se elige la opción
+// más cercana que ofrece cada cobertura. Devuelve true si algo cambió.
+function aplicarCoberturas(
+  items: ItemCobertura[],
+  request: CotizacionRequest,
+  ajustes: string[],
+): boolean {
+  const cob = request.coberturasPersonalizadas;
+  if (!cob) return false;
+  let cambio = false;
+  for (const it of items) {
+    if (!it.habilitada) continue;
+    const nombre = it.nombreTipoCobertura.toUpperCase();
+    if (
+      nombre === "RESPONSABILIDAD CIVIL DAÑOS A TERCEROS" &&
+      cob.responsabilidadCivil !== undefined
+    ) {
+      const v = masCercano(
+        "responsabilidadCivil",
+        cob.responsabilidadCivil,
+        opciones(it.sumasAseguradas),
+        ajustes,
+      );
+      if (v !== it.montoSumaAsegurada) {
+        it.montoSumaAsegurada = v;
+        cambio = true;
+      }
+    } else if (
+      nombre === "GASTOS MÉDICOS OCUPANTES" &&
+      cob.gastosMedicos !== undefined
+    ) {
+      const v = masCercano(
+        "gastosMedicos",
+        cob.gastosMedicos,
+        opciones(it.sumasAseguradas),
+        ajustes,
+      );
+      if (v !== it.montoSumaAsegurada) {
+        it.montoSumaAsegurada = v;
+        cambio = true;
+      }
+    } else if (
+      nombre === "DAÑOS MATERIALES" &&
+      cob.deducibleDanosMateriales !== undefined
+    ) {
+      const v = masCercano(
+        "deducibleDanosMateriales",
+        cob.deducibleDanosMateriales,
+        opciones(it.deducibles),
+        ajustes,
+      );
+      if (v !== it.montoDeducible) {
+        it.montoDeducible = v;
+        cambio = true;
+      }
+    } else if (nombre === "ROBO TOTAL" && cob.deducibleRoboTotal !== undefined) {
+      const v = masCercano(
+        "deducibleRoboTotal",
+        cob.deducibleRoboTotal,
+        opciones(it.deducibles),
+        ajustes,
+      );
+      if (v !== it.montoDeducible) {
+        it.montoDeducible = v;
+        cambio = true;
+      }
+    }
+  }
+  return cambio;
+}
+
 // Para recalcular hay que reenviar los ítems tal como los devolvió cotizar,
 // pero solo con los campos que acepta el servicio de recálculo.
 function itemsParaRecalculo(items: ItemCobertura[]): unknown[] {
@@ -230,15 +311,19 @@ export async function cotizarBanorteReal(
     };
   }
 
-  const items = poliza.certificado?.items ?? [];
-  const primaLista = poliza.resumenCotizacion?.primaNeta ?? 0;
+  let items = poliza.certificado?.items ?? [];
+  const ajustes: string[] = [];
+  const coberturasModificadas = aplicarCoberturas(items, request, ajustes);
   const descReal = descuentoAplicable(poliza, descuento);
 
-  // Con descuento autorizado se recalcula para que Banorte devuelva la prima
-  // definitiva. Si el recálculo falla se conserva la prima de lista.
+  // Con descuento autorizado o coberturas modificadas se recalcula para que
+  // Banorte devuelva la prima definitiva. Si el recálculo falla se conserva la
+  // prima de lista.
   let resumen = poliza.resumenCotizacion ?? {};
+  let primaLista = resumen.primaNeta ?? 0;
   let descuentoAplicado = 0;
-  if (descReal && items.length) {
+  let errorRecalculo: string | undefined;
+  if ((descReal || coberturasModificadas) && items.length) {
     try {
       const data = await llamarBanorte<RespuestaCotizacion>({
         metodo: "POST",
@@ -248,17 +333,34 @@ export async function cotizarBanorteReal(
           items: itemsParaRecalculo(items),
           nombreVigencia: poliza.vigencia || "ANUAL",
           nombreFormaPago: resumen.nombreFormaPago,
-          valorDescuento: descReal,
+          valorDescuento: descReal ?? 0,
         },
       });
-      const recalculada = data.polizas?.[0]?.resumenCotizacion;
-      if (recalculada?.primaTotal) {
-        resumen = recalculada;
-        descuentoAplicado = descReal;
+      const recalculada = data.polizas?.[0];
+      if (recalculada?.resumenCotizacion?.primaTotal) {
+        resumen = recalculada.resumenCotizacion;
+        descuentoAplicado = descReal ?? 0;
+        items = recalculada.certificado?.items ?? items;
+        if (coberturasModificadas) {
+          // La prima de lista cambió con las coberturas; se reconstruye a
+          // partir de la prima recalculada y el descuento aplicado.
+          const neta = resumen.primaNeta ?? 0;
+          primaLista =
+            descuentoAplicado > 0 ? neta / (1 - descuentoAplicado / 100) : neta;
+        }
       }
-    } catch {
-      // Se mantiene la prima de lista sin descuento.
+    } catch (err) {
+      errorRecalculo = err instanceof Error ? err.message : String(err);
     }
+  }
+
+  if (coberturasModificadas && errorRecalculo) {
+    return {
+      ...base,
+      status: "error",
+      error: `Banorte no aceptó las coberturas solicitadas: ${errorRecalculo}`,
+      tiempoRespuestaMs: Date.now() - inicioTiempo,
+    };
   }
 
   if (!resumen.primaTotal) {
@@ -296,5 +398,6 @@ export async function cotizarBanorteReal(
     vigencia: { inicio: fechaISO(inicio), fin: fechaISO(fin) },
     tiempoRespuestaMs: Date.now() - inicioTiempo,
     origen: "real",
+    ajustes: ajustes.length ? ajustes : undefined,
   };
 }

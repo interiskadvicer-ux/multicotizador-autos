@@ -38,6 +38,21 @@ export interface Conductor {
   telefono?: string;
 }
 
+// Coberturas que el broker puede ajustar desde el comparativo. Todas son
+// opcionales: si se omiten, cada aseguradora usa el valor por defecto de su
+// plan. Las sumas aseguradas van en MXN y los deducibles en porcentaje.
+export interface CoberturasPersonalizadas {
+  responsabilidadCivil?: number;
+  gastosMedicos?: number;
+  deducibleDanosMateriales?: number;
+  deducibleRoboTotal?: number;
+}
+
+export const OPCIONES_RC = [3_000_000, 4_000_000, 5_000_000] as const;
+export const OPCIONES_GM = [100_000, 150_000, 200_000, 300_000, 500_000] as const;
+export const OPCIONES_DEDUCIBLE_DM = [3, 5, 10] as const;
+export const OPCIONES_DEDUCIBLE_RT = [5, 10, 20] as const;
+
 export interface CotizacionRequest {
   vehiculo: Vehiculo;
   conductor: Conductor;
@@ -54,6 +69,9 @@ export interface CotizacionRequest {
   // ajustarlo por cotización. Si no se envía, se usa el descuento por defecto
   // de cada aseguradora.
   descuentos?: Record<string, number>;
+  // Sumas aseguradas y deducibles elegidos por el broker. Cada aseguradora
+  // aplica el valor más cercano que admita y lo reporta en `ajustes`.
+  coberturasPersonalizadas?: CoberturasPersonalizadas;
 }
 
 export interface Cobertura {
@@ -97,6 +115,9 @@ export interface CotizacionResultado {
   origen?: "real" | "simulado";
   // Número de cotización devuelto por la aseguradora (cuando aplica).
   noCotizacion?: string;
+  // Avisos cuando la aseguradora no admite exactamente una cobertura
+  // solicitada y aplicó el valor más cercano (p. ej. "RC mínima $4,000,000").
+  ajustes?: string[];
 }
 
 export interface Aseguradora {

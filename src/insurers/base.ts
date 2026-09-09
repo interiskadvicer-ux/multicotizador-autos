@@ -1,5 +1,6 @@
 import type {
   Cobertura,
+  CoberturasPersonalizadas,
   CotizacionRequest,
   CotizacionResultado,
   DesglosePrima,
@@ -52,6 +53,78 @@ function edadConductor(fechaNacimiento: string): number {
   if (Number.isNaN(nacimiento.getTime())) return 35;
   const diff = Date.now() - nacimiento.getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
+}
+
+export function formatoMoneda(n: number): string {
+  return n.toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    maximumFractionDigits: 0,
+  });
+}
+
+function montoDesdeTexto(texto: string): number {
+  return Number(texto.replace(/[^\d.]/g, "")) || 0;
+}
+
+// Aplica las coberturas personalizadas sobre la configuración base de la
+// aseguradora simulada, devolviendo la configuración efectiva para el paquete.
+function configEfectiva(
+  cfg: PricingConfig,
+  paquete: Paquete,
+  cob: CoberturasPersonalizadas | undefined,
+): PricingConfig {
+  if (!cob) return cfg;
+  return {
+    ...cfg,
+    rcSumaAsegurada: {
+      ...cfg.rcSumaAsegurada,
+      [paquete]:
+        cob.responsabilidadCivil !== undefined
+          ? formatoMoneda(cob.responsabilidadCivil)
+          : cfg.rcSumaAsegurada[paquete],
+    },
+    gastosMedicos:
+      cob.gastosMedicos !== undefined
+        ? formatoMoneda(cob.gastosMedicos)
+        : cfg.gastosMedicos,
+    deducibleDanos:
+      cob.deducibleDanosMateriales !== undefined
+        ? `${cob.deducibleDanosMateriales}%`
+        : cfg.deducibleDanos,
+    deducibleRobo:
+      cob.deducibleRoboTotal !== undefined
+        ? `${cob.deducibleRoboTotal}%`
+        : cfg.deducibleRobo,
+  };
+}
+
+// Factor de ajuste de la prima simulada según las coberturas elegidas frente
+// a las del plan base: más suma asegurada encarece, más deducible abarata.
+function factorCoberturas(
+  base: PricingConfig,
+  paquete: Paquete,
+  cob: CoberturasPersonalizadas | undefined,
+): number {
+  if (!cob) return 1;
+  let f = 1;
+  if (cob.responsabilidadCivil !== undefined) {
+    const rcBase = montoDesdeTexto(base.rcSumaAsegurada[paquete]);
+    f *= 1 + 0.035 * ((cob.responsabilidadCivil - rcBase) / 1_000_000);
+  }
+  if (cob.gastosMedicos !== undefined && paquete !== "RC") {
+    const gmBase = montoDesdeTexto(base.gastosMedicos);
+    f *= 1 + 0.012 * ((cob.gastosMedicos - gmBase) / 100_000);
+  }
+  if (cob.deducibleDanosMateriales !== undefined && paquete === "AMPLIA") {
+    const dBase = montoDesdeTexto(base.deducibleDanos);
+    f *= 1 - 0.018 * (cob.deducibleDanosMateriales - dBase);
+  }
+  if (cob.deducibleRoboTotal !== undefined && paquete !== "RC") {
+    const dBase = montoDesdeTexto(base.deducibleRobo);
+    f *= 1 - 0.008 * (cob.deducibleRoboTotal - dBase);
+  }
+  return Math.max(f, 0.5);
 }
 
 export function construirCoberturas(
@@ -131,7 +204,8 @@ function calcularPrima(
     factorEdad *
     factorUso *
     factorAseguradora *
-    factorEstable;
+    factorEstable *
+    factorCoberturas(cfg, paquete, request.coberturasPersonalizadas);
 
   // Piso mínimo por paquete para evitar primas irreales en autos viejos.
   const minimo: Record<Paquete, number> = {
@@ -204,7 +278,10 @@ export async function cotizarMock(
     paquete: request.paquete,
     moneda: "MXN",
     prima: calcularPrima(cfg, request, descuentoPct),
-    coberturas: construirCoberturas(cfg, request.paquete),
+    coberturas: construirCoberturas(
+      configEfectiva(cfg, request.paquete, request.coberturasPersonalizadas),
+      request.paquete,
+    ),
     vigencia: {
       inicio: inicio.toISOString().slice(0, 10),
       fin: fin.toISOString().slice(0, 10),
