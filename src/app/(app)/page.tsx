@@ -71,6 +71,17 @@ export default function Home() {
     setError(null);
     try {
       const nuevos = await pedirCotizacion(request);
+      // La aseguradora puede recortar el descuento a su tope: el input debe
+      // reflejar el porcentaje realmente aplicado.
+      const aplicados = nuevos
+        .filter((r) => r.status === "success" && r.prima)
+        .map((r) => r.prima!.descuentoPorcentaje);
+      if (aplicados.length) {
+        const efectivo = Math.max(...aplicados);
+        if (efectivo !== descuento) {
+          setDescuentos((d) => ({ ...d, [aseguradoraId]: efectivo }));
+        }
+      }
       setResultados((prev) => [
         ...(prev ?? []).filter((r) => r.aseguradoraId !== aseguradoraId),
         ...nuevos,

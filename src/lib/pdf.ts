@@ -109,10 +109,7 @@ export function generarPdfCotizacion(
     ...paquetes.map((p) => {
       const r = buscar(id, p);
       if (!r) return "No disponible";
-      const total = r.prima!.primaTotal;
-      return `${formatMXN(total)}${
-        total === mejorPorPaquete.get(p) ? "  ★" : ""
-      }`;
+      return formatMXN(r.prima!.primaTotal);
     }),
   ]);
 
@@ -134,7 +131,11 @@ export function generarPdfCotizacion(
       const txt = Array.isArray(data.cell.text)
         ? data.cell.text.join(" ")
         : String(data.cell.text);
-      if (txt.includes("★")) {
+      const p = paquetes[data.column.index - 1];
+      const [id] = aseguradoras[data.row.index];
+      const esMejor =
+        buscar(id, p)?.prima?.primaTotal === mejorPorPaquete.get(p);
+      if (esMejor) {
         data.cell.styles.fillColor = [220, 252, 231];
         data.cell.styles.fontStyle = "bold";
         data.cell.styles.textColor = [6, 95, 70];
@@ -150,7 +151,7 @@ export function generarPdfCotizacion(
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    "★ Mejor precio del paquete. Prima total anual en pesos mexicanos (MXN), IVA incluido, vigencia 1 año.",
+    "En verde: mejor precio de cada paquete. Prima total anual en pesos mexicanos (MXN), IVA incluido, vigencia 1 año.",
     margin,
     (doc.lastAutoTable?.finalY ?? y + 40) + 5,
   );
