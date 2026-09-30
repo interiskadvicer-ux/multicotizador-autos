@@ -7,8 +7,14 @@ import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
 import type { VehiculoZurich } from "@/lib/zurich/catalogos";
+import type { VehiculoGs } from "@/lib/gs/catalogos";
 
-type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme" | "zurich";
+type AseguradoraCatalogo =
+  | "qualitas"
+  | "banorte"
+  | "afirme"
+  | "zurich"
+  | "generalseguros";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -46,6 +52,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveBanorte, setClaveBanorte] = useState("");
   const [claveAfirme, setClaveAfirme] = useState("");
   const [claveZurich, setClaveZurich] = useState("");
+  const [claveGs, setClaveGs] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
   const [catError, setCatError] = useState<Record<string, string>>({});
@@ -169,11 +176,31 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
+  function buscarGs() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "generalseguros",
+      "General de Seguros",
+      `/api/gs/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoGs[]).map((v) => ({
+          clave: v.claveGs,
+          etiqueta: `${v.marca} ${v.submarca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
     else if (aseguradora === "banorte") setClaveBanorte(v.clave);
     else if (aseguradora === "afirme") setClaveAfirme(v.clave);
-    else setClaveZurich(v.clave);
+    else if (aseguradora === "zurich") setClaveZurich(v.clave);
+    else setClaveGs(v.clave);
     if (v.version && !version) setVersion(v.version);
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
@@ -193,6 +220,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveBanorte: claveBanorte.trim() || undefined,
         claveAfirme: claveAfirme.trim() || undefined,
         claveZurich: claveZurich.trim() || undefined,
+        claveGs: claveGs.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -349,6 +377,15 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                     ),
                   placeholder: "Ej. 098C6954",
                   buscar: buscarZurich,
+                },
+                {
+                  id: "generalseguros" as const,
+                  etiqueta: "General de Seguros (claveGs)",
+                  valor: claveGs,
+                  onChange: (v: string) =>
+                    setClaveGs(v.replace(/[^0-9]/g, "").slice(0, 10)),
+                  placeholder: "Ej. 10598",
+                  buscar: buscarGs,
                 },
               ] as const
             ).map((c) => (

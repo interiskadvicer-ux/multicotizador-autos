@@ -7,6 +7,7 @@ import { gnp } from "./gnp";
 import { elPotosi } from "./elpotosi";
 import { afirme } from "./afirme";
 import { atlas } from "./atlas";
+import { generalSeguros } from "./generalseguros";
 
 // Registro central de aseguradoras. Para agregar una nueva, crea su adaptador
 // y añádelo aquí.
@@ -19,6 +20,7 @@ export const ADAPTERS: InsurerAdapter[] = [
   elPotosi,
   afirme,
   atlas,
+  generalSeguros,
 ];
 
 export const ASEGURADORAS = ADAPTERS.map((a) => ({
