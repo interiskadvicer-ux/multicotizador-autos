@@ -27,6 +27,9 @@ export interface Vehiculo {
   // idEstilo del vehículo en el catálogo de Afirme (Midas Autos). Requerido
   // para la cotización real de Afirme.
   claveAfirme?: string;
+  // Clave del vehículo en el catálogo de Zurich (p. ej. 098C6954). Requerida
+  // para la cotización real de Zurich.
+  claveZurich?: string;
 }
 
 export interface Conductor {

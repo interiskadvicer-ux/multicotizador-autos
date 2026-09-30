@@ -6,8 +6,9 @@ import { ANIOS, FORMAS_PAGO, MARCAS, PAQUETES } from "@/domain/catalogs";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
+import type { VehiculoZurich } from "@/lib/zurich/catalogos";
 
-type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme";
+type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme" | "zurich";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -44,6 +45,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
 
   const [claveBanorte, setClaveBanorte] = useState("");
   const [claveAfirme, setClaveAfirme] = useState("");
+  const [claveZurich, setClaveZurich] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
   const [catError, setCatError] = useState<Record<string, string>>({});
@@ -148,10 +150,30 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
+  function buscarZurich() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "zurich",
+      "Zurich",
+      `/api/zurich/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoZurich[]).map((v) => ({
+          clave: v.claveZurich,
+          etiqueta: `${v.marca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
     else if (aseguradora === "banorte") setClaveBanorte(v.clave);
-    else setClaveAfirme(v.clave);
+    else if (aseguradora === "afirme") setClaveAfirme(v.clave);
+    else setClaveZurich(v.clave);
     if (v.version && !version) setVersion(v.version);
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
@@ -170,6 +192,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveAmis: claveAmis.trim() || undefined,
         claveBanorte: claveBanorte.trim() || undefined,
         claveAfirme: claveAfirme.trim() || undefined,
+        claveZurich: claveZurich.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -286,7 +309,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             se cotiza de forma simulada.
           </p>
 
-          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
             {(
               [
                 {
@@ -315,6 +338,17 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                     setClaveAfirme(v.replace(/[^0-9]/g, "").slice(0, 8)),
                   placeholder: "Ej. 109931",
                   buscar: buscarAfirme,
+                },
+                {
+                  id: "zurich" as const,
+                  etiqueta: "Zurich (clave Zurich)",
+                  valor: claveZurich,
+                  onChange: (v: string) =>
+                    setClaveZurich(
+                      v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8),
+                    ),
+                  placeholder: "Ej. 098C6954",
+                  buscar: buscarZurich,
                 },
               ] as const
             ).map((c) => (

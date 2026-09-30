@@ -1,6 +1,11 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import {
+  cotizacionRealHabilitada,
+  getZurichConfig,
+} from "@/lib/zurich/config";
+import { cotizarZurichReal } from "@/lib/zurich/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 1.08,
@@ -15,22 +20,27 @@ const cfg: PricingConfig = {
 export const zurich: InsurerAdapter = {
   id: "zurich",
   nombre: "Zurich",
-  descuentoDefault: 25,
+  descuentoDefault: 35,
+  // Detalle de clave + solicitud + hasta dos recotizaciones encadenadas.
+  timeoutMs: 60_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // Zurich (REST/JSON). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.ZURICH_WS_URL / ZURICH_WS_USER / ZURICH_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de Zurich).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
-      this.id,
-      this.nombre,
-      cfg,
-      request,
-      resolverDescuento(request, this.id, this.descuentoDefault),
-    );
+    const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
+    const claveZurich = request.vehiculo.claveZurich?.trim();
+
+    // Cotización real vía Web Service V2 cuando está habilitada y el vehículo
+    // trae su clave Zurich; si no, simulación.
+    if (cotizacionRealHabilitada() && claveZurich) {
+      const cfgZ = getZurichConfig();
+      return cotizarZurichReal(
+        this.id,
+        this.nombre,
+        request,
+        Math.min(descuento, cfgZ.descuentoDefault),
+        claveZurich,
+      );
+    }
+
+    const mock = await cotizarMock(this.id, this.nombre, cfg, request, descuento);
+    return { ...mock, origen: "simulado" };
   },
 };

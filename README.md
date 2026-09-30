@@ -97,8 +97,9 @@ aseguradora nueva = crear un archivo en `src/insurers/` + registrarlo en
 
 Integradas hoy (cotizan contra el web service cuando el vehículo trae su
 clave; sin clave caen a simulado): **Quálitas** (`claveAmis`), **Banorte**
-(`claveBanorte`) y **Afirme** (`claveAfirme` = idEstilo de Midas Autos; token
-REST + SOAP, ver `src/lib/afirme/`). Afirme limita el descuento al tope del
+(`claveBanorte`), **Afirme** (`claveAfirme` = idEstilo de Midas Autos; token
+REST + SOAP, ver `src/lib/afirme/`) y **Zurich** (`claveZurich`; Web Service V2
+SOAP con WS-Security, ver `src/lib/zurich/`; hoy apunta a QA). Afirme limita el descuento al tope del
 agente (25 % en el negocio actual) y no admite descuento en el paquete RC; el
 adaptador reintenta con el descuento que sí acepta.
 
