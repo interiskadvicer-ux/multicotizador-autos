@@ -4,13 +4,13 @@ import type { FormaPago, Paquete } from "./types";
 // suelen venir de los web services de cada aseguradora (o de AMIS).
 
 export const MARCAS: Record<string, string[]> = {
-  Nissan: ["Versa", "Sentra", "March", "Kicks", "X-Trail", "NP300"],
+  Nissan: ["Versa", "Sentra", "March", "Kicks", "X-Trail", "NP300", "Altima"],
   Volkswagen: ["Jetta", "Vento", "Virtus", "Tiguan", "Polo", "Taos"],
-  Chevrolet: ["Aveo", "Onix", "Beat", "Trax", "Cavalier", "Tahoe"],
+  Chevrolet: ["Aveo", "Onix", "Beat", "Trax", "Cavalier", "Tahoe", "Cheyenne", "Silverado"],
   Toyota: ["Corolla", "Yaris", "RAV4", "Hilux", "Camry", "Avanza"],
   Kia: ["Rio", "Forte", "Sportage", "Sorento", "Seltos"],
   Honda: ["Civic", "City", "CR-V", "HR-V", "BR-V"],
-  Mazda: ["Mazda 2", "Mazda 3", "CX-3", "CX-5", "CX-30"],
+  Mazda: ["Mazda 2", "Mazda 3", "CX-3", "CX-5", "CX-30", "CX-9"],
   Ford: ["Figo", "Escape", "Ranger", "F-150", "Bronco Sport"],
 };
 
