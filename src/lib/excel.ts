@@ -12,6 +12,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   PROXIMA: "Próxima (≤60 días)",
   POR_VENCER: "Por vencer (≤30 días)",
   VENCIDA: "Vencida",
+  CANCELADA: "Cancelada",
 };
 
 async function bufferDeWorkbook(wb: ExcelJS.Workbook): Promise<ArrayBuffer> {

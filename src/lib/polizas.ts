@@ -142,7 +142,12 @@ export function eliminarPoliza(id: number): boolean {
   return info.changes > 0;
 }
 
-export type EstadoVigencia = "VIGENTE" | "POR_VENCER" | "PROXIMA" | "VENCIDA";
+export type EstadoVigencia =
+  | "VIGENTE"
+  | "POR_VENCER"
+  | "PROXIMA"
+  | "VENCIDA"
+  | "CANCELADA";
 
 export interface PolizaConEstado extends Poliza {
   estado: EstadoVigencia;
@@ -173,16 +178,20 @@ export function estadoVigencia(
 }
 
 export function listarPolizasConEstado(): PolizaConEstado[] {
-  return listarPolizas().map((p) => ({
-    ...p,
-    ...estadoVigencia(p.vigenciaFin),
-  }));
+  return listarPolizas().map((p) => {
+    const vigencia = estadoVigencia(p.vigenciaFin);
+    return {
+      ...p,
+      ...vigencia,
+      estado: p.estatusPago === "CANCELADA" ? "CANCELADA" : vigencia.estado,
+    };
+  });
 }
 
 // Pólizas que requieren aviso de renovación (vencidas o dentro de 60 días).
 export function vencimientos(): PolizaConEstado[] {
   return listarPolizasConEstado()
-    .filter((p) => p.estado !== "VIGENTE")
+    .filter((p) => p.estado !== "VIGENTE" && p.estado !== "CANCELADA")
     .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
 }
 

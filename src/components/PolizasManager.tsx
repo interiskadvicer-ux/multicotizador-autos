@@ -27,6 +27,7 @@ const ESTADO_META: Record<
   PROXIMA: { label: "Próxima (≤60 d)", cls: "bg-amber-50 text-amber-700" },
   POR_VENCER: { label: "Por vencer (≤30 d)", cls: "bg-orange-50 text-orange-700" },
   VENCIDA: { label: "Vencida", cls: "bg-red-50 text-red-700" },
+  CANCELADA: { label: "Cancelada", cls: "bg-slate-100 text-slate-600" },
 };
 
 const PAGO_META: Record<EstatusPago, { label: string; cls: string }> = {
@@ -139,7 +140,10 @@ export default function PolizasManager() {
   }, []);
 
   const vencimientos = useMemo(
-    () => polizas.filter((p) => p.estado !== "VIGENTE"),
+    () =>
+      polizas.filter(
+        (p) => p.estado !== "VIGENTE" && p.estado !== "CANCELADA",
+      ),
     [polizas],
   );
 
@@ -316,14 +320,15 @@ export default function PolizasManager() {
       }
       const { poliza } = (await res.json()) as { poliza: Poliza };
       setForm(null);
+      await cargar();
       // Al dar de alta una póliza Afirme se guardan sus recibos reales.
       if (!form.id && esAseguradoraAfirme(poliza.aseguradora)) {
         const r = await actualizarPagos([poliza.id]);
         if (r?.errores.length) {
           setAviso(`No se pudieron traer los recibos de Afirme: ${r.errores[0].error}`);
         }
+        await cargar();
       }
-      await cargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -703,7 +708,7 @@ export default function PolizasManager() {
                         className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${meta.cls}`}
                       >
                         {meta.label}
-                        {p.estado !== "VENCIDA" && p.estado !== "VIGENTE"
+                        {p.estado === "POR_VENCER" || p.estado === "PROXIMA"
                           ? ` · ${p.diasParaVencer}d`
                           : ""}
                       </span>
