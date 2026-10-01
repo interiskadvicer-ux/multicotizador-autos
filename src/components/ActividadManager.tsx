@@ -16,6 +16,9 @@ const ETIQUETA_ACCION: Record<string, string> = {
   POLIZA_ELIMINAR: "Eliminación de póliza",
   EXPORT_POLIZAS: "Exportó pólizas",
   EXPORT_ACTIVIDAD: "Exportó actividad",
+  EXPORT_PAGOS: "Exportó pagos",
+  AFIRME_CONSULTA: "Consulta Afirme",
+  PAGOS_ACTUALIZAR: "Actualizó pagos",
   USUARIO_CREAR: "Alta de usuario",
   USUARIO_EDITAR: "Edición de usuario",
 };

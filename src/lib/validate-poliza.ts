@@ -1,4 +1,4 @@
-import type { PolizaInput } from "@/domain/admin";
+import { ESTATUS_PAGO, type EstatusPago, type PolizaInput } from "@/domain/admin";
 
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -21,6 +21,18 @@ export function parsePolizaInput(
   const primaTotal = Number(b.primaTotal);
   const notas =
     typeof b.notas === "string" && b.notas.trim() ? b.notas.trim() : undefined;
+  const vehiculo =
+    typeof b.vehiculo === "string" && b.vehiculo.trim()
+      ? b.vehiculo.trim()
+      : undefined;
+  const numeroSerie =
+    typeof b.numeroSerie === "string" && b.numeroSerie.trim()
+      ? b.numeroSerie.trim().toUpperCase()
+      : undefined;
+  const estatusPagoRaw =
+    typeof b.estatusPago === "string" ? b.estatusPago.trim() : "";
+  const estatusPago =
+    ESTATUS_PAGO.find((e) => e.value === estatusPagoRaw)?.value ?? null;
 
   if (!numeroPoliza) return { data: null, error: "El número de póliza es obligatorio." };
   if (!ramo) return { data: null, error: "El ramo es obligatorio." };
@@ -34,6 +46,8 @@ export function parsePolizaInput(
     return { data: null, error: "La vigencia inicial no es válida." };
   if (!RE_FECHA.test(vigenciaFin))
     return { data: null, error: "La vigencia final no es válida." };
+  if (estatusPagoRaw && !estatusPago)
+    return { data: null, error: "El estatus de pago no es válido." };
   if (vigenciaFin < vigenciaInicio)
     return {
       data: null,
@@ -51,6 +65,9 @@ export function parsePolizaInput(
       vigenciaInicio,
       vigenciaFin,
       notas,
+      vehiculo,
+      numeroSerie,
+      estatusPago: estatusPago as EstatusPago | null,
     },
     error: null,
   };
