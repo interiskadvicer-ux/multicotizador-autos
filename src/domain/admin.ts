@@ -37,6 +37,27 @@ export interface SesionUsuario {
   rol: Rol;
 }
 
+// Estatus de cobranza de la póliza. null = sin dato.
+export type EstatusPago = "PAGADA" | "PENDIENTE" | "CANCELADA";
+
+export const ESTATUS_PAGO: { value: EstatusPago; label: string }[] = [
+  { value: "PAGADA", label: "Pagada" },
+  { value: "PENDIENTE", label: "Pendiente" },
+  { value: "CANCELADA", label: "Cancelada" },
+];
+
+// De dónde viene el estatus de pago: consulta al web service o captura.
+export type OrigenPago = "AFIRME" | "MANUAL";
+
+export function esAseguradoraAfirme(aseguradora: string): boolean {
+  return /afirme/i.test(aseguradora);
+}
+
+// Formato de póliza Afirme: oficina-número-renovación, p. ej. 3401-117764-00.
+export function numeroPolizaAfirmeValido(numero: string): boolean {
+  return /^\d{4}-\d{5,8}-\d{2}$/.test(numero.trim());
+}
+
 export interface Poliza {
   id: number;
   numeroPoliza: string;
@@ -48,6 +69,13 @@ export interface Poliza {
   vigenciaInicio: string; // ISO yyyy-mm-dd
   vigenciaFin: string; // ISO yyyy-mm-dd
   notas?: string;
+  vehiculo?: string;
+  numeroSerie?: string;
+  estatusPago: EstatusPago | null;
+  origenPago: OrigenPago | null;
+  // Estatus de la póliza según la aseguradora (p. ej. VIGENTE, CANCELADA).
+  estatusAseguradora: string | null;
+  pagoActualizadoAt: string | null;
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;
@@ -55,8 +83,42 @@ export interface Poliza {
 
 export type PolizaInput = Omit<
   Poliza,
-  "id" | "createdBy" | "createdAt" | "updatedAt"
+  | "id"
+  | "createdBy"
+  | "createdAt"
+  | "updatedAt"
+  | "origenPago"
+  | "estatusAseguradora"
+  | "pagoActualizadoAt"
 >;
+
+// Situación de un recibo en la aseguradora (Afirme: EMI, PAG, CAN).
+export type SituacionRecibo = "EMITIDO" | "PAGADO" | "CANCELADO";
+
+export interface Recibo {
+  idRecibo: string;
+  folio: string;
+  numeroEndoso: number;
+  // REC = cargo, RD = devolución (importes negativos).
+  tipoRecibo: string;
+  situacion: SituacionRecibo;
+  incisos: string;
+  primaNeta: number;
+  recargo: number;
+  derechos: number;
+  iva: number;
+  primaTotal: number;
+  vigenciaInicio: string | null;
+  vigenciaFin: string | null;
+  fechaVencimiento: string | null;
+}
+
+export interface ReciboGuardado extends Recibo {
+  policyId: number;
+  origen: OrigenPago;
+  consultadoAt: string;
+  consultadoPor: string;
+}
 
 // Ramos comunes del mercado mexicano (el usuario puede escribir uno libre).
 export const RAMOS = [

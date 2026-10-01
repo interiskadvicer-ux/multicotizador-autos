@@ -60,9 +60,59 @@ function inicializarEsquema(database: Database.Database): void {
       FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS policy_receipts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      policy_id INTEGER NOT NULL,
+      id_recibo TEXT NOT NULL,
+      folio TEXT NOT NULL DEFAULT '',
+      numero_endoso INTEGER NOT NULL DEFAULT 0,
+      tipo_recibo TEXT NOT NULL DEFAULT '',
+      situacion TEXT NOT NULL,
+      incisos TEXT NOT NULL DEFAULT '',
+      prima_neta REAL NOT NULL DEFAULT 0,
+      recargo REAL NOT NULL DEFAULT 0,
+      derechos REAL NOT NULL DEFAULT 0,
+      iva REAL NOT NULL DEFAULT 0,
+      prima_total REAL NOT NULL DEFAULT 0,
+      vigencia_inicio TEXT,
+      vigencia_fin TEXT,
+      fecha_vencimiento TEXT,
+      origen TEXT NOT NULL,
+      consultado_at TEXT NOT NULL DEFAULT (datetime('now')),
+      consultado_por TEXT NOT NULL DEFAULT '',
+      UNIQUE (policy_id, id_recibo),
+      FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_policies_vigencia_fin ON policies(vigencia_fin);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
   `);
+
+  agregarColumnas(database, "policies", {
+    vehiculo: "TEXT",
+    numero_serie: "TEXT",
+    estatus_pago: "TEXT",
+    origen_pago: "TEXT",
+    estatus_aseguradora: "TEXT",
+    pago_actualizado_at: "TEXT",
+  });
+}
+
+// Migración aditiva: agrega las columnas que falten en bases ya existentes.
+function agregarColumnas(
+  database: Database.Database,
+  tabla: string,
+  columnas: Record<string, string>,
+): void {
+  const existentes = new Set(
+    (database.prepare(`PRAGMA table_info(${tabla})`).all() as { name: string }[])
+      .map((c) => c.name),
+  );
+  for (const [nombre, tipo] of Object.entries(columnas)) {
+    if (!existentes.has(nombre)) {
+      database.exec(`ALTER TABLE ${tabla} ADD COLUMN ${nombre} ${tipo}`);
+    }
+  }
 }
 
 // En desarrollo Next recarga módulos; reutilizamos una sola conexión global
