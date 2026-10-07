@@ -5,7 +5,11 @@
 import { randomUUID } from "crypto";
 import { escapeXml, unescapeXml } from "@/lib/qualitas/soap";
 import { bloques, valor } from "@/lib/zurich/client";
-import { credencialesConfiguradas, getHdiConfig, type HdiConfig } from "./config";
+import {
+  credencialesConfiguradas,
+  getHdiConfig,
+  type HdiConfig,
+} from "./config";
 
 export { bloques, valor };
 
@@ -22,7 +26,9 @@ export class HdiError extends Error {}
 
 export class HdiNoConfigurado extends Error {
   constructor() {
-    super("HDI aún no está conectado: falta la contraseña del WS (pídela al administrador).");
+    super(
+      "HDI aún no está conectado: falta la contraseña del WS (pídela al administrador).",
+    );
   }
 }
 
@@ -35,7 +41,11 @@ export function xmlCampos(campos: Campos): string {
     .join("");
 }
 
-export function envelopeHdi(cfg: HdiConfig, accion: string, body: string): string {
+export function envelopeHdi(
+  cfg: HdiConfig,
+  accion: string,
+  body: string,
+): string {
   return (
     `<s:Envelope xmlns:s="${SOAP_NS}" xmlns:a="${WSA_NS}" xmlns:u="${WSU_NS}" ` +
     `xmlns:pub="${PUB_NS}" xmlns:arr="${ARR_NS}"><s:Header>` +
@@ -58,7 +68,11 @@ export function erroresNegocio(xml: string): string[] {
     .filter(Boolean);
 }
 
-async function post(cfg: HdiConfig, accion: string, body: string): Promise<string> {
+async function post(
+  cfg: HdiConfig,
+  accion: string,
+  body: string,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
   try {
@@ -74,9 +88,12 @@ async function post(cfg: HdiConfig, accion: string, body: string): Promise<strin
     const xml = await res.text();
     const [fault] = bloques(xml, "Fault");
     if (fault !== undefined) {
-      throw new HdiError(valor(fault, "Text") || "HDI respondió con un SOAP Fault.");
+      throw new HdiError(
+        valor(fault, "Text") || "HDI respondió con un SOAP Fault.",
+      );
     }
-    if (!res.ok) throw new HdiError(`HTTP ${res.status}: respuesta inesperada de HDI.`);
+    if (!res.ok)
+      throw new HdiError(`HTTP ${res.status}: respuesta inesperada de HDI.`);
     return xml;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
