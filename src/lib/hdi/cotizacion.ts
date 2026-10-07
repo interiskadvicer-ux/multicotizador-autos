@@ -17,8 +17,19 @@ import type {
 import { acotar, masCercano } from "@/lib/coberturas";
 import { unescapeXml } from "@/lib/qualitas/soap";
 import { credencialesConfiguradas, getHdiConfig } from "./config";
-import { HdiError, HdiNoConfigurado, bloques, llamarHdi, valor, xmlCampos } from "./client";
-import { TIPO_VEHICULO_PICKUP, parsearClaveHdi, type ClaveHdi } from "./catalogos";
+import {
+  HdiError,
+  HdiNoConfigurado,
+  bloques,
+  llamarHdi,
+  valor,
+  xmlCampos,
+} from "./client";
+import {
+  TIPO_VEHICULO_PICKUP,
+  parsearClaveHdi,
+  type ClaveHdi,
+} from "./catalogos";
 
 // Claves de paquete por tipo de vehículo (autos residentes / pick ups).
 const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
@@ -28,7 +39,10 @@ const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
 
 // Uso y servicio por tipo de vehículo: 4581 automóviles residentes / 4601
 // particular; 4596 pick up familiar / 4584 pick up carga comercial.
-const USO_SERVICIO: Record<"auto" | "pickup", { idUso: number; idServicio: number }> = {
+const USO_SERVICIO: Record<
+  "auto" | "pickup",
+  { idUso: number; idServicio: number }
+> = {
   auto: { idUso: 4581, idServicio: 4601 },
   pickup: { idUso: 4596, idServicio: 4584 },
 };
@@ -59,7 +73,7 @@ const ORDEN_COBERTURAS = [
 ];
 
 const FORMA_PAGO_HDI: Record<FormaPago, RegExp> = {
-  CONTADO: /CONTADO|ANUAL/i,
+  CONTADO: /^ANUAL$/i,
   MENSUAL: /MENSUAL/i,
   TRIMESTRAL: /TRIMESTRAL/i,
   SEMESTRAL: /SEMESTRAL/i,
@@ -140,7 +154,9 @@ function region(xml: string, tag: string): string {
 
 function todos(xml: string, tag: string): number[] {
   return Array.from(
-    xml.matchAll(new RegExp(`<(?:\\w+:)?${tag}>([^<]*)</(?:\\w+:)?${tag}>`, "g")),
+    xml.matchAll(
+      new RegExp(`<(?:\\w+:)?${tag}>([^<]*)</(?:\\w+:)?${tag}>`, "g"),
+    ),
     (m) => num(unescapeXml(m[1]).trim()),
   );
 }
@@ -156,9 +172,10 @@ function leerCobertura(c: string): CoberturaHdi {
     deducible: num(valor(c, "Deducible")),
     proveedorAsistencia: num(valor(c, "ProveedorAsistencia")),
     calculada: valor(c, "Calculada") === "true",
-    opcionesSuma: todos(region(c, "InformacionSumasAseguradas"), "SumaAsegurada").filter(
-      (n) => n > 0,
-    ),
+    opcionesSuma: todos(
+      region(c, "InformacionSumasAseguradas"),
+      "SumaAsegurada",
+    ).filter((n) => n > 0),
     sumaMinima: min ? num(min) : undefined,
     sumaMaxima: max ? num(max) : undefined,
     opcionesDeducible: todos(region(c, "Deducibles"), "Descripcion"),
@@ -169,9 +186,10 @@ export function leerPaquetes(xml: string): PaqueteHdi[] {
   return bloques(xml, "PaquetesCoberturas").map((p) => {
     const coberturas = {} as Record<Grupo, CoberturaHdi[]>;
     for (const g of GRUPOS) {
-      coberturas[g] = (bloques(p, g)[0] ?? "")
-        ? bloques(bloques(p, g)[0], "Coberturas").map(leerCobertura)
-        : [];
+      coberturas[g] =
+        (bloques(p, g)[0] ?? "")
+          ? bloques(bloques(p, g)[0], "Coberturas").map(leerCobertura)
+          : [];
     }
     const t = bloques(p, "Totales")[0] ?? "";
     return {
@@ -186,7 +204,9 @@ export function leerPaquetes(xml: string): PaqueteHdi[] {
         iva: num(valor(t, "IVA")),
         primaTotal: num(valor(t, "PrimaTotal")),
       },
-      porcentajeAjuste: num(valor(bloques(p, "Ajuste")[0] ?? "", "PorcentajeAjuste")),
+      porcentajeAjuste: num(
+        valor(bloques(p, "Ajuste")[0] ?? "", "PorcentajeAjuste"),
+      ),
     };
   });
 }
@@ -217,7 +237,10 @@ export function xmlPaqueteConCambios(
 ): string {
   return (
     `<pub:PaquetesCoberturas><pub:Clave>${paquete.clave}</pub:Clave>` +
-    xmlGrupo("CoberturasObligatorias", paquete.coberturas.CoberturasObligatorias) +
+    xmlGrupo(
+      "CoberturasObligatorias",
+      paquete.coberturas.CoberturasObligatorias,
+    ) +
     `<pub:Vigencia>${xmlCampos([
       ["Inicial", s.inicio],
       ["Final", s.fin],
@@ -238,7 +261,8 @@ export function xmlPaqueteConCambios(
 // defecto; con `cambios` se recalcula el paquete enviado.
 export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
   const cfg = getHdiConfig();
-  const { idUso, idServicio } = USO_SERVICIO[categoria(s.vehiculo.tipoVehiculo)];
+  const { idUso, idServicio } =
+    USO_SERVICIO[categoria(s.vehiculo.tipoVehiculo)];
   const datosVehiculo =
     "<pub:datosVehiculo>" +
     xmlCampos([
@@ -293,25 +317,36 @@ export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
   );
 }
 
-let formasPago: Promise<Array<{ clave: number; descripcion: string }>> | undefined;
+let formasPago:
+  Promise<Array<{ clave: number; descripcion: string }>> | undefined;
 
 async function idFormaPago(forma: FormaPago): Promise<number> {
   formasPago ??= llamarHdi("ObtenerFormasPago", "").then((xml) =>
-    bloques(xml, "FormaPago").map((f) => ({
+    bloques(xml, "FormasPago").map((f) => ({
       clave: num(valor(f, "Clave")),
       descripcion: valor(f, "Descripcion"),
     })),
   );
   formasPago.catch(() => (formasPago = undefined));
-  const encontrada = (await formasPago).find((f) => FORMA_PAGO_HDI[forma].test(f.descripcion));
-  if (!encontrada) throw new HdiError(`HDI no tiene la forma de pago ${forma}.`);
+  const encontrada = (await formasPago).find((f) =>
+    FORMA_PAGO_HDI[forma].test(f.descripcion),
+  );
+  if (!encontrada)
+    throw new HdiError(`HDI no tiene la forma de pago ${forma}.`);
   return encontrada.clave;
 }
 
-async function obtenerPaquete(s: SolicitudHdi, cambios?: string): Promise<PaqueteHdi> {
-  const xml = await llamarHdi("ObtenerPaquetes", xmlObtenerPaquetes(s, cambios));
+async function obtenerPaquete(
+  s: SolicitudHdi,
+  cambios?: string,
+): Promise<PaqueteHdi> {
+  const xml = await llamarHdi(
+    "ObtenerPaquetes",
+    xmlObtenerPaquetes(s, cambios),
+  );
   const paquete = leerPaquetes(xml).find((p) => p.clave === s.clavePaquete);
-  if (!paquete) throw new HdiError(`HDI no devolvió el paquete ${s.clavePaquete}.`);
+  if (!paquete)
+    throw new HdiError(`HDI no devolvió el paquete ${s.clavePaquete}.`);
   return paquete;
 }
 
@@ -327,7 +362,10 @@ export function aplicarPersonalizadas(
   );
   let cambio = false;
 
-  const suma = (clave: number, campo: "responsabilidadCivil" | "gastosMedicos") => {
+  const suma = (
+    clave: number,
+    campo: "responsabilidadCivil" | "gastosMedicos",
+  ) => {
     const c = porClave.get(clave);
     const solicitado = cob[campo];
     if (!c || !c.calculada || solicitado === undefined) return;
@@ -345,7 +383,13 @@ export function aplicarPersonalizadas(
   ) => {
     const c = porClave.get(clave);
     const solicitado = cob[campo];
-    if (!c || !c.calculada || solicitado === undefined || !c.opcionesDeducible.length) return;
+    if (
+      !c ||
+      !c.calculada ||
+      solicitado === undefined ||
+      !c.opcionesDeducible.length
+    )
+      return;
     const v = masCercano(campo, solicitado, c.opcionesDeducible, ajustes);
     if (v !== c.deducible) {
       c.deducible = v;
@@ -361,7 +405,8 @@ export function aplicarPersonalizadas(
 }
 
 function formatearSuma(clave: number, monto: number): string {
-  if (clave === COB_DANOS_MATERIALES || clave === COB_ROBO_TOTAL) return "Valor comercial";
+  if (clave === COB_DANOS_MATERIALES || clave === COB_ROBO_TOTAL)
+    return "Valor comercial";
   if (monto <= 1) return "Amparada";
   return `$${monto.toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
@@ -370,12 +415,14 @@ export function coberturasHomologadas(paquete: PaqueteHdi): Cobertura[] {
   const porNombre = new Map<string, CoberturaHdi>();
   for (const c of GRUPOS.flatMap((g) => paquete.coberturas[g])) {
     const nombre = COBERTURA_HOMOLOGADA[c.clave];
-    if (nombre && c.calculada && !porNombre.has(nombre)) porNombre.set(nombre, c);
+    if (nombre && c.calculada && !porNombre.has(nombre))
+      porNombre.set(nombre, c);
   }
   return ORDEN_COBERTURAS.map((nombre) => {
     const c = porNombre.get(nombre);
     if (!c) return { nombre, incluida: false, deducible: "N/A" };
-    const conDeducible = c.clave === COB_DANOS_MATERIALES || c.clave === COB_ROBO_TOTAL;
+    const conDeducible =
+      c.clave === COB_DANOS_MATERIALES || c.clave === COB_ROBO_TOTAL;
     return {
       nombre,
       incluida: true,
@@ -386,7 +433,10 @@ export function coberturasHomologadas(paquete: PaqueteHdi): Cobertura[] {
 }
 
 // HDI reporta el descuento como monto negativo en <Totales><Descuento>.
-export function desglose(t: TotalesHdi, descuentoPorcentaje: number): DesglosePrima {
+export function desglose(
+  t: TotalesHdi,
+  descuentoPorcentaje: number,
+): DesglosePrima {
   const descuentoMonto = round2(Math.abs(t.descuento));
   const primaNetaSinDescuento = round2(t.primaNeta);
   return {
@@ -433,7 +483,8 @@ export async function cotizarHdiReal(
       anio: request.vehiculo.anio,
       cp: request.vehiculo.cp,
       idFormaPago: await idFormaPago(request.formaPago),
-      clavePaquete: PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][request.paquete],
+      clavePaquete:
+        PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][request.paquete],
       inicio: fecha(inicio),
       fin: fecha(fin),
     };
@@ -441,12 +492,30 @@ export async function cotizarHdiReal(
     let paquete = await obtenerPaquete(solicitud);
     const ajustes: string[] = [];
     const personalizado = request.coberturasPersonalizadas
-      ? aplicarPersonalizadas(request.coberturasPersonalizadas, paquete, ajustes)
+      ? aplicarPersonalizadas(
+          request.coberturasPersonalizadas,
+          paquete,
+          ajustes,
+        )
       : false;
     if (descuento > 0 || personalizado) {
       paquete = await obtenerPaquete(
         solicitud,
-        xmlPaqueteConCambios(paquete, solicitud, descuento, cfg.tipoAjusteDescuento),
+        xmlPaqueteConCambios(
+          paquete,
+          solicitud,
+          descuento,
+          cfg.tipoAjusteDescuento,
+        ),
+      );
+    }
+    if (
+      descuento > 0 &&
+      paquete.porcentajeAjuste &&
+      paquete.porcentajeAjuste < descuento
+    ) {
+      ajustes.push(
+        `Descuento: HDI autoriza máximo ${paquete.porcentajeAjuste}% en este paquete.`,
       );
     }
     if (!paquete.totales.primaTotal) {
