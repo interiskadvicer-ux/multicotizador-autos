@@ -22,7 +22,7 @@ export class HdiError extends Error {}
 
 export class HdiNoConfigurado extends Error {
   constructor() {
-    super("Falta la contraseña del WS de HDI. Configura HDI_WS_USER y HDI_WS_PASS.");
+    super("HDI aún no está conectado: falta la contraseña del WS (pídela al administrador).");
   }
 }
 
