@@ -7,8 +7,9 @@ import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
 import type { VehiculoZurich } from "@/lib/zurich/catalogos";
+import type { VehiculoHdi } from "@/lib/hdi/catalogos";
 
-type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme" | "zurich";
+type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme" | "zurich" | "hdi";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -46,6 +47,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveBanorte, setClaveBanorte] = useState("");
   const [claveAfirme, setClaveAfirme] = useState("");
   const [claveZurich, setClaveZurich] = useState("");
+  const [claveHdi, setClaveHdi] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
   const [catError, setCatError] = useState<Record<string, string>>({});
@@ -169,11 +171,31 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
+  function buscarHdi() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "hdi",
+      "HDI",
+      `/api/hdi/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoHdi[]).map((v) => ({
+          clave: v.claveHdi,
+          etiqueta: `${v.marca} ${v.submarca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
     else if (aseguradora === "banorte") setClaveBanorte(v.clave);
     else if (aseguradora === "afirme") setClaveAfirme(v.clave);
-    else setClaveZurich(v.clave);
+    else if (aseguradora === "zurich") setClaveZurich(v.clave);
+    else setClaveHdi(v.clave);
     if (v.version && !version) setVersion(v.version);
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
@@ -193,6 +215,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveBanorte: claveBanorte.trim() || undefined,
         claveAfirme: claveAfirme.trim() || undefined,
         claveZurich: claveZurich.trim() || undefined,
+        claveHdi: claveHdi.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -349,6 +372,15 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                     ),
                   placeholder: "Ej. 098C6954",
                   buscar: buscarZurich,
+                },
+                {
+                  id: "hdi" as const,
+                  etiqueta: "HDI (clave HDI)",
+                  valor: claveHdi,
+                  onChange: (v: string) =>
+                    setClaveHdi(v.replace(/[^0-9-]/g, "").slice(0, 20)),
+                  placeholder: "Ej. 4579-2389654",
+                  buscar: buscarHdi,
                 },
               ] as const
             ).map((c) => (
