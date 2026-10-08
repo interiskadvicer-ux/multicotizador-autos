@@ -1,6 +1,8 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import { cotizacionRealHabilitada, getElPotosiConfig } from "@/lib/elpotosi/client";
+import { cotizarElPotosiReal } from "@/lib/elpotosi/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 0.9,
@@ -15,22 +17,16 @@ const cfg: PricingConfig = {
 export const elPotosi: InsurerAdapter = {
   id: "elpotosi",
   nombre: "Seguros El Potosí",
-  descuentoDefault: 20,
+  descuentoDefault: getElPotosiConfig().descuentoDefault,
+  // Coberturas del paquete + recálculo de coberturas editadas + cotizar.
+  timeoutMs: 60_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // Seguros El Potosí (SOAP). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.EL_POTOSI_WS_URL / EL_POTOSI_WS_USER / EL_POTOSI_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de Seguros El Potosí).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
-      this.id,
-      this.nombre,
-      cfg,
-      request,
-      resolverDescuento(request, this.id, this.descuentoDefault),
-    );
+    const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
+    const clave = request.vehiculo.claveElPotosi?.trim();
+    if (cotizacionRealHabilitada() && clave) {
+      return cotizarElPotosiReal(this.id, this.nombre, request, descuento, clave);
+    }
+    const mock = await cotizarMock(this.id, this.nombre, cfg, request, descuento);
+    return { ...mock, origen: "simulado" };
   },
 };

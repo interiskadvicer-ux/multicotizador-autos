@@ -33,6 +33,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de HDI (`tipoVehiculo-idVehiculo`, p. ej.
   // 4579-2389654). Requerida para la cotización real de HDI.
   claveHdi?: string;
+  // Clave del vehículo en el catálogo de El Potosí (`tipo-marca-modelo-version`,
+  // p. ej. AUT-120-001-07). Requerida para la cotización real de El Potosí.
+  claveElPotosi?: string;
 }
 
 export interface Conductor {

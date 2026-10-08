@@ -8,8 +8,15 @@ import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
 import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
 import type { VehiculoZurich } from "@/lib/zurich/catalogos";
 import type { VehiculoHdi } from "@/lib/hdi/catalogos";
+import type { VehiculoElPotosi } from "@/lib/elpotosi/catalogos";
 
-type AseguradoraCatalogo = "qualitas" | "banorte" | "afirme" | "zurich" | "hdi";
+type AseguradoraCatalogo =
+  | "qualitas"
+  | "banorte"
+  | "afirme"
+  | "zurich"
+  | "hdi"
+  | "elpotosi";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -48,6 +55,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveAfirme, setClaveAfirme] = useState("");
   const [claveZurich, setClaveZurich] = useState("");
   const [claveHdi, setClaveHdi] = useState("");
+  const [claveElPotosi, setClaveElPotosi] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
   const [catError, setCatError] = useState<Record<string, string>>({});
@@ -190,12 +198,32 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
+  function buscarElPotosi() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "elpotosi",
+      "El Potosí",
+      `/api/elpotosi/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoElPotosi[]).map((v) => ({
+          clave: v.claveElPotosi,
+          etiqueta: `${v.marca} ${v.submarca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
     else if (aseguradora === "banorte") setClaveBanorte(v.clave);
     else if (aseguradora === "afirme") setClaveAfirme(v.clave);
     else if (aseguradora === "zurich") setClaveZurich(v.clave);
-    else setClaveHdi(v.clave);
+    else if (aseguradora === "hdi") setClaveHdi(v.clave);
+    else setClaveElPotosi(v.clave);
     if (v.version && !version) setVersion(v.version);
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
   }
@@ -216,6 +244,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveAfirme: claveAfirme.trim() || undefined,
         claveZurich: claveZurich.trim() || undefined,
         claveHdi: claveHdi.trim() || undefined,
+        claveElPotosi: claveElPotosi.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -381,6 +410,17 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                     setClaveHdi(v.replace(/[^0-9-]/g, "").slice(0, 20)),
                   placeholder: "Ej. 4579-2389654",
                   buscar: buscarHdi,
+                },
+                {
+                  id: "elpotosi" as const,
+                  etiqueta: "El Potosí (clave El Potosí)",
+                  valor: claveElPotosi,
+                  onChange: (v: string) =>
+                    setClaveElPotosi(
+                      v.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20),
+                    ),
+                  placeholder: "Ej. AUT-120-001-07",
+                  buscar: buscarElPotosi,
                 },
               ] as const
             ).map((c) => (
