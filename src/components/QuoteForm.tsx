@@ -43,16 +43,16 @@ const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
 ];
 
 function tokens(texto: string): Set<string> {
-  return new Set(
-    texto
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toUpperCase()
-      .replace(/[^A-Z0-9.]+/g, " ")
-      .split(" ")
-      .map((t) => t.replace(/^\.+|\.+$/g, ""))
-      .filter(Boolean),
-  );
+  const lista = texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9.]+/g, " ")
+    .split(" ")
+    .map((t) => t.replace(/^\.+|\.+$/g, ""))
+    .filter(Boolean);
+  const unidos = lista.slice(1).map((t, i) => lista[i] + t);
+  return new Set([...lista, ...unidos]);
 }
 
 function similitud(a: string, b: string): number {
