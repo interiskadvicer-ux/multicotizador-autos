@@ -33,6 +33,55 @@ interface OpcionVehiculo {
 
 const marcas = Object.keys(MARCAS);
 
+const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
+  "qualitas",
+  "banorte",
+  "afirme",
+  "zurich",
+  "hdi",
+  "elpotosi",
+];
+
+function tokens(texto: string): Set<string> {
+  return new Set(
+    texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9.]+/g, " ")
+      .split(" ")
+      .map((t) => t.replace(/^\.+|\.+$/g, ""))
+      .filter(Boolean),
+  );
+}
+
+function similitud(a: string, b: string): number {
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let comunes = 0;
+  ta.forEach((t) => {
+    if (tb.has(t)) comunes++;
+  });
+  return comunes / (ta.size + tb.size - comunes);
+}
+
+function masParecida(
+  referencia: string,
+  opciones: OpcionVehiculo[],
+): OpcionVehiculo | undefined {
+  let mejor: OpcionVehiculo | undefined;
+  let mejorScore = 0;
+  for (const o of opciones) {
+    const score = similitud(referencia, o.version || o.etiqueta);
+    if (score > mejorScore) {
+      mejor = o;
+      mejorScore = score;
+    }
+  }
+  return mejor;
+}
+
 export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [marca, setMarca] = useState(marcas[0]);
   const [modelo, setModelo] = useState(MARCAS[marcas[0]][0]);
@@ -57,7 +106,11 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveHdi, setClaveHdi] = useState("");
   const [claveElPotosi, setClaveElPotosi] = useState("");
 
-  const [catBuscando, setCatBuscando] = useState<"" | AseguradoraCatalogo>("");
+  const [catBuscando, setCatBuscando] = useState<Record<string, boolean>>({});
+  const [catAbierto, setCatAbierto] = useState<Record<string, boolean>>({});
+  const [catElegido, setCatElegido] = useState<
+    Record<string, OpcionVehiculo | undefined>
+  >({});
   const [catError, setCatError] = useState<Record<string, string>>({});
   const [catResultados, setCatResultados] = useState<
     Record<string, OpcionVehiculo[]>
@@ -71,9 +124,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     url: string,
     normalizar: (data: { vehiculos?: unknown[] }) => OpcionVehiculo[],
   ) {
-    setCatBuscando(aseguradora);
+    setCatBuscando((b) => ({ ...b, [aseguradora]: true }));
     setCatError((e) => ({ ...e, [aseguradora]: "" }));
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
+    setCatElegido((el) => ({ ...el, [aseguradora]: undefined }));
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -93,13 +147,22 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         return;
       }
       setCatResultados((r) => ({ ...r, [aseguradora]: opciones }));
+      const sugerida = version.trim()
+        ? masParecida(version, opciones)
+        : undefined;
+      if (sugerida) {
+        asignarClave(aseguradora, sugerida);
+        setCatAbierto((a) => ({ ...a, [aseguradora]: false }));
+      } else {
+        setCatAbierto((a) => ({ ...a, [aseguradora]: true }));
+      }
     } catch {
       setCatError((e) => ({
         ...e,
         [aseguradora]: `Error de red al consultar el catálogo de ${nombre}.`,
       }));
     } finally {
-      setCatBuscando("");
+      setCatBuscando((b) => ({ ...b, [aseguradora]: false }));
     }
   }
 
@@ -217,15 +280,34 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
-  function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
+  function asignarClave(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     if (aseguradora === "qualitas") setClaveAmis(v.clave);
     else if (aseguradora === "banorte") setClaveBanorte(v.clave);
     else if (aseguradora === "afirme") setClaveAfirme(v.clave);
     else if (aseguradora === "zurich") setClaveZurich(v.clave);
     else if (aseguradora === "hdi") setClaveHdi(v.clave);
     else setClaveElPotosi(v.clave);
-    if (v.version && !version) setVersion(v.version);
-    setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
+    setCatElegido((el) => ({ ...el, [aseguradora]: v }));
+  }
+
+  function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
+    asignarClave(aseguradora, v);
+    if (v.version) setVersion(v.version);
+    setCatAbierto((a) => ({ ...a, [aseguradora]: false }));
+  }
+
+  const buscando = Object.values(catBuscando).some(Boolean);
+
+  function buscarEnTodas() {
+    const buscadores: Record<AseguradoraCatalogo, () => Promise<void>> = {
+      qualitas: buscarQualitas,
+      banorte: buscarBanorte,
+      afirme: buscarAfirme,
+      zurich: buscarZurich,
+      hdi: buscarHdi,
+      elpotosi: buscarElPotosi,
+    };
+    return Promise.all(ASEGURADORAS_CATALOGO.map((id) => buscadores[id]()));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -351,14 +433,26 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-          <p className="text-xs font-semibold text-amber-800">
-            Claves del vehículo por aseguradora
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-amber-800">
+              Claves del vehículo por aseguradora
+            </p>
+            <button
+              type="button"
+              onClick={buscarEnTodas}
+              disabled={buscando}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60"
+            >
+              {buscando ? "Buscando…" : "Buscar en todas"}
+            </button>
+          </div>
           <p className="mt-1 text-[11px] text-amber-700">
             Cada aseguradora identifica el vehículo con su propia clave y la
             necesita para cotizar en real. Busca en su catálogo y elige la
-            versión: la clave se llena sola. Si la dejas vacía, esa aseguradora
-            se cotiza de forma simulada.
+            versión: la clave se llena sola. Con &quot;Buscar en todas&quot; se
+            preselecciona en cada aseguradora la versión más parecida a la
+            capturada; revísala y cámbiala si no corresponde. Si la clave queda
+            vacía, esa aseguradora se cotiza de forma simulada.
           </p>
 
           <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4">
@@ -432,10 +526,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                   <button
                     type="button"
                     onClick={c.buscar}
-                    disabled={catBuscando !== ""}
+                    disabled={catBuscando[c.id]}
                     className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-60"
                   >
-                    {catBuscando === c.id ? "Buscando…" : "Buscar en catálogo"}
+                    {catBuscando[c.id] ? "Buscando…" : "Buscar en catálogo"}
                   </button>
                 </div>
                 <input
@@ -447,14 +541,39 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                 {catError[c.id] && (
                   <p className="mt-2 text-xs text-rose-600">{catError[c.id]}</p>
                 )}
-                {(catResultados[c.id]?.length ?? 0) > 0 && (
+                {catElegido[c.id] && catElegido[c.id]?.clave === c.valor && (
+                  <div className="mt-2 flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs">
+                    <span className="text-slate-700">
+                      <span className="font-medium text-amber-800">
+                        Versión:{" "}
+                      </span>
+                      {catElegido[c.id]?.etiqueta}
+                    </span>
+                    {(catResultados[c.id]?.length ?? 0) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCatAbierto((a) => ({ ...a, [c.id]: !a[c.id] }))
+                        }
+                        className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+                      >
+                        {catAbierto[c.id] ? "Cerrar" : "Cambiar"}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {catAbierto[c.id] && (catResultados[c.id]?.length ?? 0) > 0 && (
                   <ul className="mt-2 max-h-48 divide-y divide-amber-100 overflow-auto rounded-lg border border-amber-200 bg-white">
                     {catResultados[c.id].map((v) => (
                       <li key={`${v.clave}-${v.etiqueta}`}>
                         <button
                           type="button"
                           onClick={() => elegirVehiculo(c.id, v)}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-amber-50"
+                          className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs hover:bg-amber-50 ${
+                            catElegido[c.id]?.clave === v.clave
+                              ? "bg-amber-100"
+                              : ""
+                          }`}
                         >
                           <span className="text-slate-700">{v.etiqueta}</span>
                           <span className="shrink-0 font-mono text-amber-700">
