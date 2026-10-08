@@ -66,14 +66,26 @@ function similitud(a: string, b: string): number {
   return comunes / (ta.size + tb.size - comunes);
 }
 
+const NO_PARTICULAR =
+  /\b(SERV\.?\s?PUB|SERVPUB|SERVICIO PUBLICO|TAXI|TURISTA|TURISTAS|FRONTERIZ|CARGA|COMERCIAL)\w*/;
+
 function masParecida(
   referencia: string,
   opciones: OpcionVehiculo[],
+  uso: "PARTICULAR" | "COMERCIAL",
 ): OpcionVehiculo | undefined {
   let mejor: OpcionVehiculo | undefined;
   let mejorScore = 0;
   for (const o of opciones) {
-    const score = similitud(referencia, o.version || o.etiqueta);
+    let score = similitud(referencia, o.version || o.etiqueta);
+    if (
+      uso === "PARTICULAR" &&
+      NO_PARTICULAR.test(
+        o.etiqueta.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
+      )
+    ) {
+      score *= 0.5;
+    }
     if (score > mejorScore) {
       mejor = o;
       mejorScore = score;
@@ -127,7 +139,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     setCatBuscando((b) => ({ ...b, [aseguradora]: true }));
     setCatError((e) => ({ ...e, [aseguradora]: "" }));
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
-    setCatElegido((el) => ({ ...el, [aseguradora]: undefined }));
+    asignarClave(aseguradora, undefined);
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -148,7 +160,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
       }
       setCatResultados((r) => ({ ...r, [aseguradora]: opciones }));
       const sugerida = version.trim()
-        ? masParecida(version, opciones)
+        ? masParecida(version, opciones, uso)
         : undefined;
       if (sugerida) {
         asignarClave(aseguradora, sugerida);
@@ -280,14 +292,25 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
-  function asignarClave(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
-    if (aseguradora === "qualitas") setClaveAmis(v.clave);
-    else if (aseguradora === "banorte") setClaveBanorte(v.clave);
-    else if (aseguradora === "afirme") setClaveAfirme(v.clave);
-    else if (aseguradora === "zurich") setClaveZurich(v.clave);
-    else if (aseguradora === "hdi") setClaveHdi(v.clave);
-    else setClaveElPotosi(v.clave);
+  function asignarClave(
+    aseguradora: AseguradoraCatalogo,
+    v: OpcionVehiculo | undefined,
+  ) {
+    const clave = v?.clave ?? "";
+    if (aseguradora === "qualitas") setClaveAmis(clave);
+    else if (aseguradora === "banorte") setClaveBanorte(clave);
+    else if (aseguradora === "afirme") setClaveAfirme(clave);
+    else if (aseguradora === "zurich") setClaveZurich(clave);
+    else if (aseguradora === "hdi") setClaveHdi(clave);
+    else setClaveElPotosi(clave);
     setCatElegido((el) => ({ ...el, [aseguradora]: v }));
+  }
+
+  function limpiarClaves() {
+    ASEGURADORAS_CATALOGO.forEach((id) => asignarClave(id, undefined));
+    setCatResultados({});
+    setCatAbierto({});
+    setCatError({});
   }
 
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
@@ -365,6 +388,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
               onChange={(e) => {
                 setMarca(e.target.value);
                 setModelo(MARCAS[e.target.value][0]);
+                limpiarClaves();
               }}
             >
               {marcas.map((m) => (
@@ -377,7 +401,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             <select
               className={inputCls}
               value={modelo}
-              onChange={(e) => setModelo(e.target.value)}
+              onChange={(e) => {
+                setModelo(e.target.value);
+                limpiarClaves();
+              }}
             >
               {modelos.map((m) => (
                 <option key={m}>{m}</option>
@@ -389,7 +416,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             <select
               className={inputCls}
               value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
+              onChange={(e) => {
+                setAnio(Number(e.target.value));
+                limpiarClaves();
+              }}
             >
               {ANIOS.map((a) => (
                 <option key={a}>{a}</option>
