@@ -61,10 +61,7 @@ function mensajeError(texto: string): string {
   return texto.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
-export async function llamarElPotosi<T>(
-  url: string,
-  body?: unknown,
-): Promise<T> {
+async function solicitar(url: string, body?: unknown): Promise<Response> {
   const cfg = getElPotosiConfig();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), cfg.timeoutMs);
@@ -73,7 +70,7 @@ export async function llamarElPotosi<T>(
       method: body === undefined ? "GET" : "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
+        Accept: "application/json, application/pdf, text/plain",
         "x-elpotosi": cfg.apiKey,
         "User-Agent": USER_AGENT,
       },
@@ -81,14 +78,14 @@ export async function llamarElPotosi<T>(
       signal: controller.signal,
       cache: "no-store",
     });
-    const texto = await res.text();
     if (!res.ok) {
+      const texto = await res.text();
       throw new ElPotosiError(
         mensajeError(texto) || `HTTP ${res.status}`,
         res.status,
       );
     }
-    return JSON.parse(texto) as T;
+    return res;
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError")
       throw new ElPotosiError("El Potosí no respondió a tiempo.");
@@ -96,6 +93,32 @@ export async function llamarElPotosi<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function llamarElPotosi<T>(
+  url: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await solicitar(url, body);
+  return JSON.parse(await res.text()) as T;
+}
+
+export async function llamarElPotosiTexto(
+  url: string,
+  body?: unknown,
+): Promise<string> {
+  const res = await solicitar(url, body);
+  return res.text();
+}
+
+export async function llamarElPotosiBinario(
+  url: string,
+): Promise<{ contentType: string; datos: Buffer }> {
+  const res = await solicitar(url);
+  return {
+    contentType: res.headers.get("content-type") ?? "",
+    datos: Buffer.from(await res.arrayBuffer()),
+  };
 }
 
 export function urlCotizador(path: string, params: Record<string, string | number>): string {

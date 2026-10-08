@@ -121,6 +121,8 @@ export async function buscarVehiculos(
 }
 
 interface Asentamiento {
+  idAsenta: string;
+  descripcion: string;
   c_Estado: string;
   c_Cve_Ciudad: string;
 }
@@ -130,16 +132,39 @@ interface Municipio {
   c_Cve_Ciudad: string;
 }
 
-// Estado y municipio de El Potosí a partir del código postal.
-export function ubicacionPorCp(
+export interface DomicilioElPotosi {
+  estado: string;
+  ciudad: string;
+  municipio: string;
+  localidad: string;
+  colonia: string;
+}
+
+function normalizarTexto(t: string): string {
+  return t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .trim();
+}
+
+// Códigos Sepomex de El Potosí a partir del código postal; si se indica la
+// colonia se usa su asentamiento, si no el primero del CP.
+export function domicilioPorCp(
   cp: string,
-): Promise<{ estado: string; municipio: string }> {
+  colonia?: string,
+): Promise<DomicilioElPotosi> {
   const { usuario } = getElPotosiConfig();
-  return conCache(`cp:${cp}`, async () => {
-    const asentamientos = await llamarElPotosi<Asentamiento[]>(
-      urlCotizador("Sepomex/ObtenerAsentamientos", { CodUsr: usuario, CodigoPostal: cp }),
+  return conCache(`cp:${cp}:${colonia ? normalizarTexto(colonia) : ""}`, async () => {
+    const asentamientos = await conCache(`asentamientos:${cp}`, () =>
+      llamarElPotosi<Asentamiento[]>(
+        urlCotizador("Sepomex/ObtenerAsentamientos", { CodUsr: usuario, CodigoPostal: cp }),
+      ),
     );
-    const a = asentamientos[0];
+    const buscada = colonia ? normalizarTexto(colonia) : "";
+    const a =
+      asentamientos.find((x) => buscada && normalizarTexto(x.descripcion) === buscada) ??
+      asentamientos[0];
     if (!a) throw new Error(`El Potosí no reconoce el código postal ${cp}.`);
     const municipios = await conCache(`municipios:${a.c_Estado}`, () =>
       llamarElPotosi<Municipio[]>(
@@ -148,6 +173,19 @@ export function ubicacionPorCp(
     );
     const m = municipios.find((x) => x.c_Cve_Ciudad === a.c_Cve_Ciudad);
     if (!m) throw new Error(`El Potosí no tiene municipio para el CP ${cp}.`);
-    return { estado: a.c_Estado, municipio: m.c_Mnpio };
+    return {
+      estado: a.c_Estado,
+      ciudad: a.c_Cve_Ciudad,
+      municipio: m.c_Mnpio,
+      localidad: a.idAsenta,
+      colonia: a.descripcion,
+    };
   });
+}
+
+export async function ubicacionPorCp(
+  cp: string,
+): Promise<{ estado: string; municipio: string }> {
+  const { estado, municipio } = await domicilioPorCp(cp);
+  return { estado, municipio };
 }

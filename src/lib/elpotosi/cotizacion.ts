@@ -341,6 +341,7 @@ export async function cotizarElPotosiReal(
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",
       noCotizacion: String(r.folioCotizacion),
+      referenciaEmision: plan.formapagoid,
       ajustes: ajustes.length ? ajustes : undefined,
     };
   } catch (err) {
