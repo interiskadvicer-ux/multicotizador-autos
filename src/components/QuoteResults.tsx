@@ -430,6 +430,15 @@ function CeldaPrima({
           {desc}% desc. aplicado
         </span>
       )}
+      {resultado.noCotizacion && (
+        <span
+          className={`block text-[10px] font-medium ${
+            activa ? "text-sky-100" : "text-slate-500"
+          }`}
+        >
+          Folio {resultado.noCotizacion}
+        </span>
+      )}
     </button>
   );
 }

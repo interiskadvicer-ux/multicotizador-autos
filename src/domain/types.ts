@@ -33,6 +33,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de HDI (`tipoVehiculo-idVehiculo`, p. ej.
   // 4579-2389654). Requerida para la cotización real de HDI.
   claveHdi?: string;
+  // Clave del vehículo en el catálogo de El Potosí (`tipo-marca-modelo-version`,
+  // p. ej. AUT-120-001-07). Requerida para la cotización real de El Potosí.
+  claveElPotosi?: string;
 }
 
 export interface Conductor {
@@ -121,6 +124,9 @@ export interface CotizacionResultado {
   origen?: "real" | "simulado";
   // Número de cotización devuelto por la aseguradora (cuando aplica).
   noCotizacion?: string;
+  // Dato adicional que la aseguradora pide para emitir esta cotización
+  // (p. ej. el id del plan de pago de El Potosí).
+  referenciaEmision?: string;
   // Avisos cuando la aseguradora no admite exactamente una cobertura
   // solicitada y aplicó el valor más cercano (p. ej. "RC mínima $4,000,000").
   ajustes?: string[];
