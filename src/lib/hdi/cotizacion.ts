@@ -1,9 +1,8 @@
 // Cotización real de HDI (ObtenerPaquetes, tarifa tradicional).
-// Flujo: se calcula el paquete con sus coberturas por defecto; si el broker
-// pidió descuento o coberturas personalizadas se recalcula enviando el
-// paquete en `paquetesConCambios` con el ajuste (descuento) y las sumas y
-// deducibles elegidos. HDI devuelve la prima de lista y el descuento por
-// separado en <Totales>.
+// Flujo: se obtiene el paquete con sus coberturas por defecto y se recalcula
+// enviándolo en `paquetesConCambios` con las coberturas declaradas, el ajuste
+// (descuento) y las sumas y deducibles elegidos. HDI devuelve la prima de
+// lista y el descuento por separado en <Totales>.
 
 import type {
   Cobertura,
@@ -13,6 +12,7 @@ import type {
   DesglosePrima,
   FormaPago,
   Paquete,
+  Uso,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
 import { unescapeXml } from "@/lib/qualitas/soap";
@@ -37,15 +37,14 @@ const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
   pickup: { AMPLIA: 23, LIMITADA: 24, RC: 25 },
 };
 
-// Uso y servicio por tipo de vehículo: 4581 automóviles residentes / 4601
-// particular; 4596 pick up familiar / 4584 pick up carga comercial.
-const USO_SERVICIO: Record<
-  "auto" | "pickup",
-  { idUso: number; idServicio: number }
-> = {
-  auto: { idUso: 4581, idServicio: 4601 },
-  pickup: { idUso: 4596, idServicio: 4584 },
+// Uso por tipo de vehículo: 4581 automóviles residentes; 4596 pick up
+// familiar; 4584 pick up carga comercial. El servicio siempre es 4601
+// (particular) y la carga 5425 (no aplica / viaja vacío).
+const ID_USO: Record<"auto" | "pickup", Record<Uso, number>> = {
+  auto: { PARTICULAR: 4581, COMERCIAL: 4581 },
+  pickup: { PARTICULAR: 4596, COMERCIAL: 4584 },
 };
+const ID_SERVICIO_PARTICULAR = 4601;
 const ID_RIESGO_CARGA = 5425;
 const TIPO_PERSONA = "00";
 
@@ -119,6 +118,7 @@ export interface PaqueteHdi {
 
 export interface SolicitudHdi {
   vehiculo: ClaveHdi;
+  uso?: Uso;
   anio: number;
   cp: string;
   idFormaPago: number;
@@ -261,8 +261,8 @@ export function xmlPaqueteConCambios(
 // defecto; con `cambios` se recalcula el paquete enviado.
 export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
   const cfg = getHdiConfig();
-  const { idUso, idServicio } =
-    USO_SERVICIO[categoria(s.vehiculo.tipoVehiculo)];
+  const idUso =
+    ID_USO[categoria(s.vehiculo.tipoVehiculo)][s.uso ?? "PARTICULAR"];
   const datosVehiculo =
     "<pub:datosVehiculo>" +
     xmlCampos([
@@ -281,7 +281,7 @@ export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
       ["pasajeros", 0],
       ["idZonaCirculacion", 0],
       ["idTonelaje", 0],
-      ["idServicio", idServicio],
+      ["idServicio", ID_SERVICIO_PARTICULAR],
       ["idRiesgoCarga", ID_RIESGO_CARGA],
     ]) +
     `<pub:DatosAdicionales>${xmlCampos([
@@ -480,6 +480,7 @@ export async function cotizarHdiReal(
 
     const solicitud: SolicitudHdi = {
       vehiculo,
+      uso: request.vehiculo.uso,
       anio: request.vehiculo.anio,
       cp: request.vehiculo.cp,
       idFormaPago: await idFormaPago(request.formaPago),
@@ -489,26 +490,23 @@ export async function cotizarHdiReal(
       fin: fecha(fin),
     };
 
+    // HDI exige declarar las coberturas (sumas y deducibles) en la
+    // cotización: la primera llamada trae la estructura del paquete y la
+    // segunda cotiza con las coberturas declaradas.
     let paquete = await obtenerPaquete(solicitud);
     const ajustes: string[] = [];
-    const personalizado = request.coberturasPersonalizadas
-      ? aplicarPersonalizadas(
-          request.coberturasPersonalizadas,
-          paquete,
-          ajustes,
-        )
-      : false;
-    if (descuento > 0 || personalizado) {
-      paquete = await obtenerPaquete(
-        solicitud,
-        xmlPaqueteConCambios(
-          paquete,
-          solicitud,
-          descuento,
-          cfg.tipoAjusteDescuento,
-        ),
-      );
+    if (request.coberturasPersonalizadas) {
+      aplicarPersonalizadas(request.coberturasPersonalizadas, paquete, ajustes);
     }
+    paquete = await obtenerPaquete(
+      solicitud,
+      xmlPaqueteConCambios(
+        paquete,
+        solicitud,
+        descuento,
+        cfg.tipoAjusteDescuento,
+      ),
+    );
     if (
       descuento > 0 &&
       paquete.porcentajeAjuste &&
