@@ -110,24 +110,30 @@ function configuracionPaquete(cob: CoberturasPersonalizadas | undefined): string
 }
 
 function leerPaquetes(xml: string): PaqueteGs[] {
-  return bloques(xml, "paquetes").map((p) => ({
-    id: valor(p, "id"),
-    nombre: valor(p, "nombre"),
-    coberturas: bloques(p, "coberturas").map((c) => ({
-      descripcion: valor(c, "descripcion"),
-      monto: valor(c, "monto"),
-      deducible: valor(c, "deducible"),
-      orden: num(valor(c, "orden")),
-    })),
-    formas: bloques(p, "formasPagoDTO").map((f) => ({
-      nombre: valor(f, "nombre"),
-      primaNeta: num(valor(f, "primaNeta")),
-      derechos: num(valor(f, "derechos")),
-      recargo: num(valor(f, "recargo")),
-      iva: num(valor(f, "iva")),
-      primaTotal: num(valor(f, "primaTotal")),
-    })),
-  }));
+  return bloques(xml, "paquetes").map((p) => {
+    const encabezado = p.replace(
+      /<(?:\w+:)?(formasPagoDTO|coberturas)(?:\s[^>]*)?>[\s\S]*?<\/(?:\w+:)?\1>/g,
+      "",
+    );
+    return {
+      id: valor(encabezado, "id"),
+      nombre: valor(encabezado, "nombre"),
+      coberturas: bloques(p, "coberturas").map((c) => ({
+        descripcion: valor(c, "descripcion"),
+        monto: valor(c, "monto"),
+        deducible: valor(c, "deducible"),
+        orden: num(valor(c, "orden")),
+      })),
+      formas: bloques(p, "formasPagoDTO").map((f) => ({
+        nombre: valor(f, "nombre"),
+        primaNeta: num(valor(f, "primaNeta")),
+        derechos: num(valor(f, "derechos")),
+        recargo: num(valor(f, "recargo")),
+        iva: num(valor(f, "iva")),
+        primaTotal: num(valor(f, "primaTotal")),
+      })),
+    };
+  });
 }
 
 async function generarCotizacion(
