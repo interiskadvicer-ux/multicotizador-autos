@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CotizacionRequest } from "@/domain/types";
+import type { CotizacionRequest, TipoCarga } from "@/domain/types";
 import { ANIOS, FORMAS_PAGO, MARCAS, PAQUETES } from "@/domain/catalogs";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
 import type { VehiculoBanorte } from "@/lib/banorte/catalogos";
@@ -32,6 +32,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [anio, setAnio] = useState<number>(ANIOS[0]);
   const [version, setVersion] = useState("");
   const [uso, setUso] = useState<"PARTICULAR" | "COMERCIAL">("PARTICULAR");
+  const [tipoCarga, setTipoCarga] = useState<TipoCarga>("VACIO");
   const [valorFactura, setValorFactura] = useState("");
   const [cpVehiculo, setCpVehiculo] = useState("");
   const [claveAmis, setClaveAmis] = useState("");
@@ -209,6 +210,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         anio,
         version,
         uso,
+        tipoCarga: uso === "COMERCIAL" ? tipoCarga : undefined,
         valorFactura: valorFactura ? Number(valorFactura) : undefined,
         cp: cpVehiculo,
         claveAmis: claveAmis.trim() || undefined,
@@ -307,6 +309,20 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
               <option value="COMERCIAL">Comercial</option>
             </select>
           </div>
+          {uso === "COMERCIAL" && (
+            <div>
+              <label className={labelCls}>Carga</label>
+              <select
+                className={inputCls}
+                value={tipoCarga}
+                onChange={(e) => setTipoCarga(e.target.value as TipoCarga)}
+              >
+                <option value="VACIO">Viaja vacío</option>
+                <option value="A">Riesgo A (ej. abarrotes)</option>
+                <option value="B">Riesgo B (ej. madera)</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className={labelCls}>Valor factura (MXN, opcional)</label>
             <input

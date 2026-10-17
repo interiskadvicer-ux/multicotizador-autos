@@ -12,6 +12,7 @@ import type {
   DesglosePrima,
   FormaPago,
   Paquete,
+  TipoCarga,
   Uso,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
@@ -39,13 +40,35 @@ const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
 
 // Uso por tipo de vehículo: 4581 automóviles residentes; 4596 pick up
 // familiar; 4584 pick up carga comercial. El servicio siempre es 4601
-// (particular) y la carga 5425 (no aplica / viaja vacío).
+// (particular).
 const ID_USO: Record<"auto" | "pickup", Record<Uso, number>> = {
   auto: { PARTICULAR: 4581, COMERCIAL: 4581 },
   pickup: { PARTICULAR: 4596, COMERCIAL: 4584 },
 };
 const ID_SERVICIO_PARTICULAR = 4601;
-const ID_RIESGO_CARGA = 5425;
+
+// Riesgo de carga (solo pick ups de carga comercial): 5425 no aplica / viaja
+// vacío; 4607 riesgo A y 4608 riesgo B, con la descripción de la carga del
+// catálogo de HDI (5719 abarrotes incluyendo latería, 5783 madera labrada o
+// laminada).
+const ID_RIESGO_VACIO = 5425;
+const RIESGO_CARGA: Record<
+  Exclude<TipoCarga, "VACIO">,
+  { id: number; letra: string; idDescripcion: number }
+> = {
+  A: { id: 4607, letra: "A", idDescripcion: 5719 },
+  B: { id: 4608, letra: "B", idDescripcion: 5783 },
+};
+
+export function riesgoCargaHdi(
+  s: Pick<SolicitudHdi, "vehiculo" | "uso" | "tipoCarga">,
+) {
+  const carga =
+    categoria(s.vehiculo.tipoVehiculo) === "pickup" && s.uso === "COMERCIAL"
+      ? s.tipoCarga
+      : undefined;
+  return carga && carga !== "VACIO" ? RIESGO_CARGA[carga] : undefined;
+}
 const TIPO_PERSONA = "00";
 
 const COB_DANOS_MATERIALES = 233;
@@ -119,6 +142,7 @@ export interface PaqueteHdi {
 export interface SolicitudHdi {
   vehiculo: ClaveHdi;
   uso?: Uso;
+  tipoCarga?: TipoCarga;
   anio: number;
   cp: string;
   idFormaPago: number;
@@ -263,6 +287,7 @@ export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
   const cfg = getHdiConfig();
   const idUso =
     ID_USO[categoria(s.vehiculo.tipoVehiculo)][s.uso ?? "PARTICULAR"];
+  const riesgo = riesgoCargaHdi(s);
   const datosVehiculo =
     "<pub:datosVehiculo>" +
     xmlCampos([
@@ -282,14 +307,19 @@ export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
       ["idZonaCirculacion", 0],
       ["idTonelaje", 0],
       ["idServicio", ID_SERVICIO_PARTICULAR],
-      ["idRiesgoCarga", ID_RIESGO_CARGA],
+      ["idRiesgoCarga", riesgo?.id ?? ID_RIESGO_VACIO],
     ]) +
     `<pub:DatosAdicionales>${xmlCampos([
       ["Renovaciones", 0],
       ["idRemolque", 0],
       ["CPCirculacion", s.cp],
     ])}</pub:DatosAdicionales>` +
-    "<pub:DatosRiesgoCarga><pub:idRiesgoCarga/><pub:idDescripcionRiesgoCarga/></pub:DatosRiesgoCarga>" +
+    (riesgo
+      ? `<pub:DatosRiesgoCarga>${xmlCampos([
+          ["idRiesgoCarga", riesgo.letra],
+          ["idDescripcionRiesgoCarga", riesgo.idDescripcion],
+        ])}</pub:DatosRiesgoCarga>`
+      : "<pub:DatosRiesgoCarga><pub:idRiesgoCarga/><pub:idDescripcionRiesgoCarga/></pub:DatosRiesgoCarga>") +
     "</pub:datosVehiculo>";
   const lista = cambios
     ? "<pub:listaPaquetesACalcular/>"
@@ -481,6 +511,7 @@ export async function cotizarHdiReal(
     const solicitud: SolicitudHdi = {
       vehiculo,
       uso: request.vehiculo.uso,
+      tipoCarga: request.vehiculo.tipoCarga,
       anio: request.vehiculo.anio,
       cp: request.vehiculo.cp,
       idFormaPago: await idFormaPago(request.formaPago),

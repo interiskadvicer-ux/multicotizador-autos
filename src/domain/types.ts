@@ -3,6 +3,9 @@
 
 export type Uso = "PARTICULAR" | "COMERCIAL";
 
+// Riesgo de la carga que transporta un vehículo de uso comercial.
+export type TipoCarga = "VACIO" | "A" | "B";
+
 export type Genero = "M" | "F";
 
 // Paquetes estándar del mercado mexicano de autos.
@@ -16,6 +19,7 @@ export interface Vehiculo {
   anio: number;
   version: string;
   uso: Uso;
+  tipoCarga?: TipoCarga; // solo uso comercial; por defecto viaja vacío
   valorFactura?: number; // valor comercial estimado en MXN
   cp: string; // código postal de circulación
   // Clave del vehículo en el catálogo de Quálitas (ClaveAmis). Requerida para
