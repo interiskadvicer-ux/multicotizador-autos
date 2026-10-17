@@ -17,10 +17,10 @@ export function getElPotosiConfig(): ElPotosiConfig {
   return {
     urlCotizador:
       process.env.EL_POTOSI_COTIZADOR_URL ||
-      "https://api.elpotosi.com.mx/Autos/CotizadorDinamico/qa",
+      "https://api.elpotosi.com.mx/Autos/CotizadorDinamico/V1",
     urlCatalogos:
       process.env.EL_POTOSI_CATALOGOS_URL ||
-      "https://api.elpotosi.com.mx/Autos/Catalogos/beta4",
+      "https://api.elpotosi.com.mx/Autos/Catalogos/V4",
     apiKey: process.env.EL_POTOSI_API_KEY || "headerAPIsElPotosi",
     usuario: process.env.EL_POTOSI_USUARIO || "MC010000",
     intermediario: process.env.EL_POTOSI_INTERMEDIARIO || "010000",
