@@ -35,16 +35,18 @@ const COB_DM = "DAMA";
 const COB_RT = "ROBT";
 const COB_RC = "DBPE";
 const COB_GM = "GTMO";
+const COB_GM_PICKUP = "GMTO";
 
 const HOMOLOGADA: Record<string, string> = {
   [COB_DM]: "Daños Materiales",
   [COB_RT]: "Robo Total",
   [COB_RC]: "Responsabilidad Civil",
   [COB_GM]: "Gastos Médicos Ocupantes",
+  [COB_GM_PICKUP]: "Gastos Médicos Ocupantes",
   ASVJ: "Asistencia Vial y Legal",
   ASDL: "Defensa Jurídica",
 };
-const ORDEN = Object.values(HOMOLOGADA);
+const ORDEN = Array.from(new Set(Object.values(HOMOLOGADA)));
 
 export interface CoberturaElPotosi {
   codRamo: string;
@@ -170,7 +172,7 @@ export function aplicarPersonalizadas(
       cambiadas.add(rc);
     }
   }
-  const gm = por(COB_GM);
+  const gm = por(COB_GM) ?? por(COB_GM_PICKUP);
   if (gm && p.gastosMedicos !== undefined) {
     const opciones = (gm.sumaAseguradaList ?? []).map((o) => o.sA_Asegurada);
     const v = opciones.length
@@ -290,9 +292,9 @@ export async function cotizarElPotosiReal(
       genero: request.conductor.genero,
     };
     const paquete = `${PAQUETE[request.paquete]}-${getElPotosiConfig().usuario}`;
-    const coberturas = (await coberturasPaquete(ctx, paquete)).filter(
-      (c) => c.seleccionada === "S",
-    );
+    const coberturas = (await coberturasPaquete(ctx, paquete))
+      .filter((c) => c.seleccionada !== "N")
+      .map((c) => ({ ...c, seleccionada: "S" }));
     if (!coberturas.length)
       throw new ElPotosiError(`El Potosí no devolvió coberturas del paquete ${paquete}.`);
 
