@@ -290,7 +290,10 @@ export interface DatosUnidadHdi {
 
 // Contenido de datosVehiculo / CaracteristicasVehiculo (mismo esquema en
 // cotización, guardado y emisión).
-export function xmlVehiculoHdi(s: SolicitudHdi, u: DatosUnidadHdi = {}): string {
+export function xmlVehiculoHdi(
+  s: SolicitudHdi,
+  u: DatosUnidadHdi = {},
+): string {
   const idUso =
     ID_USO[categoria(s.vehiculo.tipoVehiculo)][s.uso ?? "PARTICULAR"];
   const riesgo = riesgoCargaHdi(s);

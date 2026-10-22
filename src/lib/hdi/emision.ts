@@ -107,7 +107,10 @@ function opciones(xml: string): OpcionHdi[] {
     xml.matchAll(
       /<(?:\w+:)?Clave>([^<]*)<\/(?:\w+:)?Clave>\s*<(?:\w+:)?Descripcion>([^<]*)</g,
     ),
-    (m) => ({ clave: unescapeXml(m[1]).trim(), descripcion: unescapeXml(m[2]).trim() }),
+    (m) => ({
+      clave: unescapeXml(m[1]).trim(),
+      descripcion: unescapeXml(m[2]).trim(),
+    }),
   );
 }
 
@@ -179,7 +182,8 @@ function validar(e: EmisionHdi): void {
       throw new HdiError("Vencimiento de la tarjeta inválido (mm/aa).");
     if (!/^\d{3,4}$/.test(t.cvv)) throw new HdiError("CVV inválido.");
     if (!t.idBanco) throw new HdiError("Selecciona el banco de la tarjeta.");
-    if (!t.titular.trim()) throw new HdiError("Indica el titular de la tarjeta.");
+    if (!t.titular.trim())
+      throw new HdiError("Indica el titular de la tarjeta.");
   }
 }
 
@@ -226,7 +230,12 @@ function xmlCliente(e: EmisionHdi, u: UbicacionHdi): string {
 
 function xmlDatosFiscales(e: EmisionHdi, u: UbicacionHdi): string {
   const c = e.contratante;
-  const nombre = [c.apellidoPaterno, c.apellidoMaterno, c.nombre, c.segundoNombre]
+  const nombre = [
+    c.apellidoPaterno,
+    c.apellidoMaterno,
+    c.nombre,
+    c.segundoNombre,
+  ]
     .filter(Boolean)
     .join(" ");
   return (
@@ -273,7 +282,9 @@ function leerPago(xml: string): PagoHdi | undefined {
   const r = bloques(xml, "RespuestaPagoBanco")[0];
   if (!r) return undefined;
   return {
-    resultado: valor(r, "Resultado").replace(/<[^>]*>/g, "").trim(),
+    resultado: valor(r, "Resultado")
+      .replace(/<[^>]*>/g, "")
+      .trim(),
     folio: valor(r, "FolioTransaccion"),
     importe: valor(r, "Importe"),
     recibo: valor(r, "NoRecibo"),
@@ -327,7 +338,8 @@ export async function emitirHdi(
         "</pub:GuardarCotizacionRequest>",
     );
     const cotizacion = valor(guardado, "idCotizacion");
-    if (!cotizacion) throw new HdiError("HDI no devolvió el número de cotización.");
+    if (!cotizacion)
+      throw new HdiError("HDI no devolvió el número de cotización.");
 
     const ubicacion = await ubicacionHdi(e.contratante.cp);
     const emitida = await llamarHdi(
@@ -360,13 +372,15 @@ export async function emitirHdi(
           ["DeducibleDM", deducible(paquete, COB_DANOS_MATERIALES)],
           ["DeducibleRT", deducible(paquete, COB_ROBO_TOTAL)],
         ])}</pub:ListaCondicionesTarificar></pub:ListaCondiciones>` +
-        `<pub:ListaConfiguraciones><pub:ListaConfiguracionesPaquete>${xmlCampos([
-          ["UsuarioCotiza", cfg.usuario],
-          ["InicioVigencia", solicitud.inicio],
-          ["FinVigencia", solicitud.fin],
-          ["EsCotizacionDiasPorMes", false],
-          ["Descuento", ajuste],
-        ])}</pub:ListaConfiguracionesPaquete></pub:ListaConfiguraciones>` +
+        `<pub:ListaConfiguraciones><pub:ListaConfiguracionesPaquete>${xmlCampos(
+          [
+            ["UsuarioCotiza", cfg.usuario],
+            ["InicioVigencia", solicitud.inicio],
+            ["FinVigencia", solicitud.fin],
+            ["EsCotizacionDiasPorMes", false],
+            ["Descuento", ajuste],
+          ],
+        )}</pub:ListaConfiguracionesPaquete></pub:ListaConfiguraciones>` +
         "</pub:PaqueteEmitir>" +
         xmlCampos([
           ["IDTipoSumaAsegurada", cfg.tipoSumaAsegurada],
@@ -386,7 +400,10 @@ export async function emitirHdi(
       cotizacion,
       poliza: `${cfg.agencia}-${Number(poliza)}`,
       primaTotal:
-        Math.round((Number(valor(totales, "PrimaTotal")) || paquete.totales.primaTotal) * 100) / 100,
+        Math.round(
+          (Number(valor(totales, "PrimaTotal")) || paquete.totales.primaTotal) *
+            100,
+        ) / 100,
       pago: leerPago(emitida),
     };
     try {
@@ -408,6 +425,8 @@ export async function emitirHdi(
     }
     return resultado;
   } catch (err) {
-    throw new HdiError(sinTarjeta(err instanceof Error ? err.message : String(err)));
+    throw new HdiError(
+      sinTarjeta(err instanceof Error ? err.message : String(err)),
+    );
   }
 }

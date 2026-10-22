@@ -51,7 +51,8 @@ export default function QuoteResults({
   const [detalle, setDetalle] = useState<Celda | null>(null);
 
   const porCelda = new Map<string, CotizacionResultado>();
-  for (const r of resultados) porCelda.set(`${r.aseguradoraId}|${r.paquete}`, r);
+  for (const r of resultados)
+    porCelda.set(`${r.aseguradoraId}|${r.paquete}`, r);
   const celda = (id: string, p: Paquete) => porCelda.get(`${id}|${p}`);
 
   const mejorPorPaquete: Partial<Record<Paquete, number>> = {};
@@ -512,7 +513,8 @@ function Detalle({
           {resultado.origen === "real"
             ? "Prima devuelta por el web service de la aseguradora."
             : "Prima estimada (simulada); la aseguradora aún no está conectada."}
-          {resultado.noCotizacion && ` No. cotización ${resultado.noCotizacion}.`}
+          {resultado.noCotizacion &&
+            ` No. cotización ${resultado.noCotizacion}.`}
           {resultado.tiempoRespuestaMs != null &&
             ` Respuesta en ${resultado.tiempoRespuestaMs} ms.`}
         </p>
@@ -536,13 +538,15 @@ function Detalle({
               <div className="flex items-center justify-between gap-2">
                 <span
                   className={
-                    c.incluida ? "text-slate-700" : "text-slate-400 line-through"
+                    c.incluida
+                      ? "text-slate-700"
+                      : "text-slate-400 line-through"
                   }
                 >
                   {c.nombre}
                 </span>
                 <span className="shrink-0 text-slate-500">
-                  {c.incluida ? c.sumaAsegurada ?? "Incluida" : "No incluida"}
+                  {c.incluida ? (c.sumaAsegurada ?? "Incluida") : "No incluida"}
                 </span>
               </div>
               {c.incluida && c.deducible && c.deducible !== "N/A" && (

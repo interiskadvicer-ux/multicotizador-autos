@@ -29,7 +29,9 @@ interface Props {
 
 function descargarPdf(base64: string, nombre: string) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const url = URL.createObjectURL(
+    new Blob([bytes], { type: "application/pdf" }),
+  );
   const a = document.createElement("a");
   a.href = url;
   a.download = nombre;
@@ -63,7 +65,11 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
     colonia: "",
   });
   const [regimenFiscal, setRegimenFiscal] = useState("");
-  const [unidad, setUnidad] = useState({ numeroSerie: "", numeroMotor: "", placas: "" });
+  const [unidad, setUnidad] = useState({
+    numeroSerie: "",
+    numeroMotor: "",
+    placas: "",
+  });
   const [medioPago, setMedioPago] = useState<MedioPagoHdi>("CREDITO");
   const [tarjeta, setTarjeta] = useState({
     idBanco: "",
@@ -77,7 +83,10 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
     fetch("/api/hdi/emision")
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error(data.error ?? "No se pudieron cargar los catálogos de HDI.");
+        if (!r.ok)
+          throw new Error(
+            data.error ?? "No se pudieron cargar los catálogos de HDI.",
+          );
         setCatalogos(data);
       })
       .catch((e: Error) => setError(e.message));
@@ -90,7 +99,8 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
     fetch(`/api/hdi/emision?cp=${c.cp}`)
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error(data.error ?? "Código postal no encontrado en HDI.");
+        if (!r.ok)
+          throw new Error(data.error ?? "Código postal no encontrado en HDI.");
         if (vigente) setUbicacion(data);
       })
       .catch((e: Error) => vigente && setError(e.message));
@@ -134,7 +144,11 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          request: { ...request, paquete: resultado.paquete, paquetes: undefined },
+          request: {
+            ...request,
+            paquete: resultado.paquete,
+            paquetes: undefined,
+          },
           emision,
         }),
       });
@@ -166,12 +180,19 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
             </>
           )}
         </dl>
-        {poliza.avisoPdf && <p className="text-xs text-amber-700">{poliza.avisoPdf}</p>}
+        {poliza.avisoPdf && (
+          <p className="text-xs text-amber-700">{poliza.avisoPdf}</p>
+        )}
         <div className="flex gap-2">
           {poliza.pdfBase64 && (
             <button
               type="button"
-              onClick={() => descargarPdf(poliza.pdfBase64!, `HDI-Poliza-${poliza.poliza}.pdf`)}
+              onClick={() =>
+                descargarPdf(
+                  poliza.pdfBase64!,
+                  `HDI-Poliza-${poliza.poliza}.pdf`,
+                )
+              }
               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
             >
               Descargar póliza y recibo (PDF)
@@ -201,7 +222,11 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
           Emitir con HDI · {resultado.paquete} ·{" "}
           {resultado.prima && formatMXN(resultado.prima.primaTotal)}
         </h4>
-        <button type="button" onClick={onCerrar} className="text-xs text-slate-500 hover:underline">
+        <button
+          type="button"
+          onClick={onCerrar}
+          className="text-xs text-slate-500 hover:underline"
+        >
           Cancelar
         </button>
       </div>
@@ -210,40 +235,130 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
         <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Contratante (persona física)
         </legend>
-        <Campo label="Nombre" value={c.nombre} onChange={(v) => campo("nombre", v)} required />
-        <Campo label="Segundo nombre" value={c.segundoNombre} onChange={(v) => campo("segundoNombre", v)} />
-        <Campo label="Apellido paterno" value={c.apellidoPaterno} onChange={(v) => campo("apellidoPaterno", v)} required />
-        <Campo label="Apellido materno" value={c.apellidoMaterno} onChange={(v) => campo("apellidoMaterno", v)} />
-        <Campo label="RFC" value={c.rfc} onChange={(v) => campo("rfc", v.toUpperCase())} required maxLength={13} />
-        <Campo label="Fecha de nacimiento" type="date" value={c.fechaNacimiento} onChange={(v) => campo("fechaNacimiento", v)} required />
+        <Campo
+          label="Nombre"
+          value={c.nombre}
+          onChange={(v) => campo("nombre", v)}
+          required
+        />
+        <Campo
+          label="Segundo nombre"
+          value={c.segundoNombre}
+          onChange={(v) => campo("segundoNombre", v)}
+        />
+        <Campo
+          label="Apellido paterno"
+          value={c.apellidoPaterno}
+          onChange={(v) => campo("apellidoPaterno", v)}
+          required
+        />
+        <Campo
+          label="Apellido materno"
+          value={c.apellidoMaterno}
+          onChange={(v) => campo("apellidoMaterno", v)}
+        />
+        <Campo
+          label="RFC"
+          value={c.rfc}
+          onChange={(v) => campo("rfc", v.toUpperCase())}
+          required
+          maxLength={13}
+        />
+        <Campo
+          label="Fecha de nacimiento"
+          type="date"
+          value={c.fechaNacimiento}
+          onChange={(v) => campo("fechaNacimiento", v)}
+          required
+        />
         <div>
           <label className={labelCls}>Sexo</label>
-          <select className={inputCls} value={c.sexo} onChange={(e) => campo("sexo", e.target.value as "M" | "F")}>
+          <select
+            className={inputCls}
+            value={c.sexo}
+            onChange={(e) => campo("sexo", e.target.value as "M" | "F")}
+          >
             <option value="M">Masculino</option>
             <option value="F">Femenino</option>
           </select>
         </div>
-        <Opciones label="Estado civil" value={c.estadoCivil} onChange={(v) => campo("estadoCivil", v)} opciones={catalogos?.estadosCiviles} />
-        <Opciones label="Ocupación" value={c.ocupacion} onChange={(v) => campo("ocupacion", v)} opciones={catalogos?.ocupaciones} />
-        <Opciones label="Régimen fiscal" value={regimenFiscal} onChange={setRegimenFiscal} opciones={catalogos?.regimenesFiscales} />
-        <Campo label="Correo" type="email" value={c.email} onChange={(v) => campo("email", v)} required />
-        <Campo label="Teléfono" value={c.telefono} onChange={(v) => campo("telefono", v.replace(/\D/g, ""))} required maxLength={10} />
+        <Opciones
+          label="Estado civil"
+          value={c.estadoCivil}
+          onChange={(v) => campo("estadoCivil", v)}
+          opciones={catalogos?.estadosCiviles}
+        />
+        <Opciones
+          label="Ocupación"
+          value={c.ocupacion}
+          onChange={(v) => campo("ocupacion", v)}
+          opciones={catalogos?.ocupaciones}
+        />
+        <Opciones
+          label="Régimen fiscal"
+          value={regimenFiscal}
+          onChange={setRegimenFiscal}
+          opciones={catalogos?.regimenesFiscales}
+        />
+        <Campo
+          label="Correo"
+          type="email"
+          value={c.email}
+          onChange={(v) => campo("email", v)}
+          required
+        />
+        <Campo
+          label="Teléfono"
+          value={c.telefono}
+          onChange={(v) => campo("telefono", v.replace(/\D/g, ""))}
+          required
+          maxLength={10}
+        />
       </fieldset>
 
       <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Domicilio
         </legend>
-        <Campo label="Calle" value={c.calle} onChange={(v) => campo("calle", v)} required />
-        <Campo label="No. exterior" value={c.numeroExterior} onChange={(v) => campo("numeroExterior", v)} required />
-        <Campo label="No. interior" value={c.numeroInterior} onChange={(v) => campo("numeroInterior", v)} />
-        <Campo label="Código postal" value={c.cp} onChange={(v) => campo("cp", v.replace(/\D/g, ""))} required maxLength={5} />
+        <Campo
+          label="Calle"
+          value={c.calle}
+          onChange={(v) => campo("calle", v)}
+          required
+        />
+        <Campo
+          label="No. exterior"
+          value={c.numeroExterior}
+          onChange={(v) => campo("numeroExterior", v)}
+          required
+        />
+        <Campo
+          label="No. interior"
+          value={c.numeroInterior}
+          onChange={(v) => campo("numeroInterior", v)}
+        />
+        <Campo
+          label="Código postal"
+          value={c.cp}
+          onChange={(v) => campo("cp", v.replace(/\D/g, ""))}
+          required
+          maxLength={5}
+        />
         <div className="sm:col-span-2">
           <label className={labelCls}>Colonia</label>
-          <select className={inputCls} value={c.colonia} onChange={(e) => campo("colonia", e.target.value)} required>
-            <option value="">{ubicacion ? "Selecciona…" : "Captura el CP…"}</option>
+          <select
+            className={inputCls}
+            value={c.colonia}
+            onChange={(e) => campo("colonia", e.target.value)}
+            required
+          >
+            <option value="">
+              {ubicacion ? "Selecciona…" : "Captura el CP…"}
+            </option>
             {ubicacion?.colonias.map((col) => (
-              <option key={col} value={col}>{col}</option>
+              <option key={col} value={col}>
+                {col}
+              </option>
             ))}
           </select>
         </div>
@@ -256,9 +371,25 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
         <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           Vehículo
         </legend>
-        <Campo label="No. de serie (17)" value={unidad.numeroSerie} onChange={(v) => setUnidad((u) => ({ ...u, numeroSerie: v.toUpperCase() }))} required maxLength={17} />
-        <Campo label="No. de motor" value={unidad.numeroMotor} onChange={(v) => setUnidad((u) => ({ ...u, numeroMotor: v }))} />
-        <Campo label="Placas" value={unidad.placas} onChange={(v) => setUnidad((u) => ({ ...u, placas: v }))} />
+        <Campo
+          label="No. de serie (17)"
+          value={unidad.numeroSerie}
+          onChange={(v) =>
+            setUnidad((u) => ({ ...u, numeroSerie: v.toUpperCase() }))
+          }
+          required
+          maxLength={17}
+        />
+        <Campo
+          label="No. de motor"
+          value={unidad.numeroMotor}
+          onChange={(v) => setUnidad((u) => ({ ...u, numeroMotor: v }))}
+        />
+        <Campo
+          label="Placas"
+          value={unidad.placas}
+          onChange={(v) => setUnidad((u) => ({ ...u, placas: v }))}
+        />
       </fieldset>
 
       <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -267,19 +398,66 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
         </legend>
         <div className="sm:col-span-2">
           <label className={labelCls}>Forma de cobro</label>
-          <select className={inputCls} value={medioPago} onChange={(e) => setMedioPago(e.target.value as MedioPagoHdi)}>
+          <select
+            className={inputCls}
+            value={medioPago}
+            onChange={(e) => setMedioPago(e.target.value as MedioPagoHdi)}
+          >
             {MEDIOS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
             ))}
           </select>
         </div>
         {conTarjeta && (
           <>
-            <Opciones label="Banco" value={tarjeta.idBanco} onChange={(v) => setTarjeta((t) => ({ ...t, idBanco: v }))} opciones={catalogos?.bancos} />
-            <Campo label="Titular de la tarjeta" value={tarjeta.titular} onChange={(v) => setTarjeta((t) => ({ ...t, titular: v.toUpperCase() }))} required />
-            <Campo label="Número de tarjeta" value={tarjeta.numero} onChange={(v) => setTarjeta((t) => ({ ...t, numero: v.replace(/[^\d ]/g, "") }))} required maxLength={19} inputMode="numeric" autoComplete="cc-number" />
-            <Campo label="Vencimiento (mm/aa)" value={tarjeta.vencimiento} onChange={(v) => setTarjeta((t) => ({ ...t, vencimiento: v }))} required maxLength={5} placeholder="mm/aa" autoComplete="cc-exp" />
-            <Campo label="CVV" type="password" value={tarjeta.cvv} onChange={(v) => setTarjeta((t) => ({ ...t, cvv: v.replace(/\D/g, "") }))} required maxLength={4} inputMode="numeric" autoComplete="cc-csc" />
+            <Opciones
+              label="Banco"
+              value={tarjeta.idBanco}
+              onChange={(v) => setTarjeta((t) => ({ ...t, idBanco: v }))}
+              opciones={catalogos?.bancos}
+            />
+            <Campo
+              label="Titular de la tarjeta"
+              value={tarjeta.titular}
+              onChange={(v) =>
+                setTarjeta((t) => ({ ...t, titular: v.toUpperCase() }))
+              }
+              required
+            />
+            <Campo
+              label="Número de tarjeta"
+              value={tarjeta.numero}
+              onChange={(v) =>
+                setTarjeta((t) => ({ ...t, numero: v.replace(/[^\d ]/g, "") }))
+              }
+              required
+              maxLength={19}
+              inputMode="numeric"
+              autoComplete="cc-number"
+            />
+            <Campo
+              label="Vencimiento (mm/aa)"
+              value={tarjeta.vencimiento}
+              onChange={(v) => setTarjeta((t) => ({ ...t, vencimiento: v }))}
+              required
+              maxLength={5}
+              placeholder="mm/aa"
+              autoComplete="cc-exp"
+            />
+            <Campo
+              label="CVV"
+              type="password"
+              value={tarjeta.cvv}
+              onChange={(v) =>
+                setTarjeta((t) => ({ ...t, cvv: v.replace(/\D/g, "") }))
+              }
+              required
+              maxLength={4}
+              inputMode="numeric"
+              autoComplete="cc-csc"
+            />
             <p className="self-end pb-2 text-[11px] text-slate-500">
               Los datos de la tarjeta se envían solo a HDI; no se guardan.
             </p>
@@ -288,7 +466,9 @@ export default function EmisionHdi({ request, resultado, onCerrar }: Props) {
       </fieldset>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{error}</p>
+        <p className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {error}
+        </p>
       )}
       <div className="flex justify-end">
         <button
@@ -320,7 +500,12 @@ function Campo({
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} {...rest} />
+      <input
+        className={inputCls}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        {...rest}
+      />
     </div>
   );
 }
@@ -339,10 +524,17 @@ function Opciones({
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} required>
+      <select
+        className={inputCls}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      >
         <option value="">{opciones ? "Selecciona…" : "Cargando…"}</option>
         {opciones?.map((o) => (
-          <option key={o.clave} value={o.clave}>{o.descripcion}</option>
+          <option key={o.clave} value={o.clave}>
+            {o.descripcion}
+          </option>
         ))}
       </select>
     </div>

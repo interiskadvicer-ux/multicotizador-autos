@@ -32,7 +32,10 @@ export async function GET(req: Request) {
   try {
     if (cp !== null) {
       if (!/^\d{5}$/.test(cp))
-        return NextResponse.json({ error: "Código postal inválido." }, { status: 422 });
+        return NextResponse.json(
+          { error: "Código postal inválido." },
+          { status: 422 },
+        );
       return NextResponse.json(await ubicacionHdi(cp));
     }
     return NextResponse.json(await catalogosEmisionHdi());
@@ -53,13 +56,27 @@ function esEmisionValida(b: unknown): b is {
   const { request, emision } = b as Record<string, unknown>;
   const r = request as CotizacionRequest | undefined;
   const e = emision as EmisionHdi | undefined;
-  if (!r?.vehiculo || !texto(r.vehiculo.claveHdi) || !texto(r.paquete)) return false;
+  if (!r?.vehiculo || !texto(r.vehiculo.claveHdi) || !texto(r.paquete))
+    return false;
   if (!e?.contratante || !e.fiscal || !e.unidad) return false;
   const c = e.contratante;
   return (
-    [c.nombre, c.apellidoPaterno, c.rfc, c.fechaNacimiento, c.estadoCivil,
-      c.ocupacion, c.email, c.telefono, c.calle, c.numeroExterior, c.cp, c.colonia,
-      e.fiscal.regimenFiscal, e.unidad.numeroSerie].every((v) => texto(v)) &&
+    [
+      c.nombre,
+      c.apellidoPaterno,
+      c.rfc,
+      c.fechaNacimiento,
+      c.estadoCivil,
+      c.ocupacion,
+      c.email,
+      c.telefono,
+      c.calle,
+      c.numeroExterior,
+      c.cp,
+      c.colonia,
+      e.fiscal.regimenFiscal,
+      e.unidad.numeroSerie,
+    ].every((v) => texto(v)) &&
     (c.sexo === "M" || c.sexo === "F") &&
     Object.hasOwn(CONDUCTO_HDI, e.medioPago)
   );
@@ -72,7 +89,10 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Cuerpo JSON inválido." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Cuerpo JSON inválido." },
+      { status: 400 },
+    );
   }
   if (!esEmisionValida(body))
     return NextResponse.json(
