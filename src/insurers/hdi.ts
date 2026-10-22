@@ -1,6 +1,8 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import { cotizacionRealHabilitada, getHdiConfig } from "@/lib/hdi/config";
+import { cotizarHdiReal } from "@/lib/hdi/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 0.95,
@@ -15,22 +17,20 @@ const cfg: PricingConfig = {
 export const hdi: InsurerAdapter = {
   id: "hdi",
   nombre: "HDI Seguros",
-  descuentoDefault: 35,
+  descuentoDefault: getHdiConfig().descuentoDefault,
+  // Formas de pago + cálculo del paquete + recálculo con cambios.
+  timeoutMs: 60_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // HDI Seguros (SOAP). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.HDI_WS_URL / HDI_WS_USER / HDI_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de HDI Seguros).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
-      this.id,
-      this.nombre,
-      cfg,
-      request,
-      resolverDescuento(request, this.id, this.descuentoDefault),
-    );
+    const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
+    const claveHdi = request.vehiculo.claveHdi?.trim();
+
+    // Cotización real vía ObtenerPaquetes cuando está habilitada y el vehículo
+    // trae su clave HDI; si no, simulación.
+    if (cotizacionRealHabilitada() && claveHdi) {
+      return cotizarHdiReal(this.id, this.nombre, request, descuento, claveHdi);
+    }
+
+    const mock = await cotizarMock(this.id, this.nombre, cfg, request, descuento);
+    return { ...mock, origen: "simulado" };
   },
 };
