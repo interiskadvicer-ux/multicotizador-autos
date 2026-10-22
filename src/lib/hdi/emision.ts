@@ -385,7 +385,8 @@ export async function emitirHdi(
     const resultado: PolizaHdi = {
       cotizacion,
       poliza: `${cfg.agencia}-${Number(poliza)}`,
-      primaTotal: Number(valor(totales, "PrimaTotal")) || paquete.totales.primaTotal,
+      primaTotal:
+        Math.round((Number(valor(totales, "PrimaTotal")) || paquete.totales.primaTotal) * 100) / 100,
       pago: leerPago(emitida),
     };
     try {
