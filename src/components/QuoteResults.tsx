@@ -14,6 +14,7 @@ import {
 import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
 import { generarPdfCotizacion } from "@/lib/pdf";
+import EmisionHdi from "./EmisionHdi";
 
 interface Props {
   resultados: CotizacionResultado[];
@@ -158,7 +159,10 @@ export default function QuoteResults({
                   }
                   detalle={
                     abiertaEnFila && seleccionado ? (
-                      <Detalle resultado={seleccionado} />
+                      <Detalle
+                        resultado={seleccionado}
+                        request={request ? { ...request, descuentos } : null}
+                      />
                     ) : null
                   }
                 />
@@ -434,9 +438,30 @@ function CeldaPrima({
   );
 }
 
-function Detalle({ resultado }: { resultado: CotizacionResultado }) {
+function Detalle({
+  resultado,
+  request,
+}: {
+  resultado: CotizacionResultado;
+  request: CotizacionRequest | null;
+}) {
+  const [emitiendo, setEmitiendo] = useState(false);
   const prima = resultado.prima;
   const label = COLUMNAS.find((c) => c.paquete === resultado.paquete)?.label;
+  const emiteHdi =
+    resultado.aseguradoraId === "hdi" &&
+    resultado.origen === "real" &&
+    resultado.status === "success" &&
+    request !== null;
+  if (emitiendo && emiteHdi) {
+    return (
+      <EmisionHdi
+        request={request}
+        resultado={resultado}
+        onCerrar={() => setEmitiendo(false)}
+      />
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[260px_1fr]">
       <div>
@@ -491,6 +516,15 @@ function Detalle({ resultado }: { resultado: CotizacionResultado }) {
           {resultado.tiempoRespuestaMs != null &&
             ` Respuesta en ${resultado.tiempoRespuestaMs} ms.`}
         </p>
+        {emiteHdi && (
+          <button
+            type="button"
+            onClick={() => setEmitiendo(true)}
+            className="mt-3 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+          >
+            Emitir y pagar con HDI
+          </button>
+        )}
       </div>
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
