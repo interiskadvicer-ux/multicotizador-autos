@@ -13,7 +13,15 @@ import type {
 } from "@/domain/types";
 import { ETIQUETA_COBERTURA } from "@/lib/coberturas";
 import { credencialesConfiguradas, getGsConfig } from "./config";
-import { GsError, GsNoConfigurado, bloques, llamarGs, valor, xmlCampos } from "./client";
+import {
+  type Campos,
+  GsError,
+  GsNoConfigurado,
+  bloques,
+  llamarGs,
+  valor,
+  xmlCampos,
+} from "./client";
 
 const SERVICIO = "cotizacionEmisionWS";
 const MODULO = "cotizacionEmision";
@@ -94,7 +102,9 @@ function edad(fechaNacimiento: string): number {
   return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
 }
 
-function configuracionPaquete(cob: CoberturasPersonalizadas | undefined): string {
+function configuracionPaquete(
+  cob: CoberturasPersonalizadas | undefined,
+): string {
   if (!cob) return "";
   const campos = xmlCampos(
     (
@@ -104,9 +114,13 @@ function configuracionPaquete(cob: CoberturasPersonalizadas | undefined): string
         ["sa_rc", cob.responsabilidadCivil],
         ["sa_gastos_medicos", cob.gastosMedicos],
       ] as const
-    ).flatMap(([k, v]) => (v === undefined ? [] : [[k, v] as [string, number]])),
+    ).flatMap(([k, v]) =>
+      v === undefined ? [] : [[k, v] as [string, number]],
+    ),
   );
-  return campos ? `<configuracionPaqueteInciso>${campos}</configuracionPaqueteInciso>` : "";
+  return campos
+    ? `<configuracionPaqueteInciso>${campos}</configuracionPaqueteInciso>`
+    : "";
 }
 
 function leerPaquetes(xml: string): PaqueteGs[] {
@@ -142,12 +156,16 @@ async function generarCotizacion(
   descuento: number,
 ): Promise<CotizacionGs> {
   const { vehiculo, conductor } = request;
+  const { idNegocio } = getGsConfig();
   const inciso =
     "<inciso>" +
     xmlCampos([
       ["claveGs", claveGs],
       ["conductorMenor30", edad(conductor.fechaNacimiento) < 30],
-      ["descripcionVehiculo", `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.version}`.trim()],
+      [
+        "descripcionVehiculo",
+        `${vehiculo.marca} ${vehiculo.modelo} ${vehiculo.version}`.trim(),
+      ],
       ["modelo", vehiculo.anio],
     ]) +
     configuracionPaquete(request.coberturasPersonalizadas) +
@@ -165,13 +183,16 @@ async function generarCotizacion(
       ["configuracionProducto", "RESIDENTE_INDIVIDUAL"],
       ["cp", Number(vehiculo.cp)],
       ["descuento", descuento],
+      ...(idNegocio ? ([["idNegocio", idNegocio]] as Campos) : []),
       ["vigencia", "ANUAL"],
     ],
     inciso,
   );
   const idCotizacion = valor(xml, "idCotizacion");
   if (!idCotizacion || idCotizacion === "0") {
-    throw new GsError(valor(xml, "mensaje") || "General de Seguros no devolvió cotización.");
+    throw new GsError(
+      valor(xml, "mensaje") || "General de Seguros no devolvió cotización.",
+    );
   }
   return { idCotizacion, paquetes: leerPaquetes(xml) };
 }
@@ -208,7 +229,8 @@ function porcentaje(texto: string): string | undefined {
 }
 
 function sumaAsegurada(c: CoberturaGs, nombre: string): string {
-  if (nombre === "Daños Materiales" || nombre === "Robo Total") return "Valor comercial";
+  if (nombre === "Daños Materiales" || nombre === "Robo Total")
+    return "Valor comercial";
   if (/AMPARAD/i.test(c.monto) || !num(c.monto)) return "Amparada";
   return `$${num(c.monto).toLocaleString("es-MX", { maximumFractionDigits: 0 })}`;
 }
@@ -251,7 +273,9 @@ function ajustesCoberturas(
     const aplicado = c[campo] ?? "";
     const n = num(aplicado);
     if (n && n !== solicitado) {
-      ajustes.push(`${ETIQUETA_COBERTURA[clave]}: General de Seguros aplicó ${aplicado}.`);
+      ajustes.push(
+        `${ETIQUETA_COBERTURA[clave]}: General de Seguros aplicó ${aplicado}.`,
+      );
     }
   };
   revisar("responsabilidadCivil", "Responsabilidad Civil", "sumaAsegurada");
@@ -299,12 +323,16 @@ export async function cotizarGsReal(
         `General de Seguros no ofrece el paquete ${request.paquete} para este vehículo.`,
       );
     }
-    const forma = paquete.formas.find((f) => FORMA_PAGO_GS[request.formaPago].test(f.nombre));
+    const forma = paquete.formas.find((f) =>
+      FORMA_PAGO_GS[request.formaPago].test(f.nombre),
+    );
     const formaLista = paqueteLista?.formas.find((f) =>
       FORMA_PAGO_GS[request.formaPago].test(f.nombre),
     );
     if (!forma || !forma.primaTotal) {
-      throw new GsError("General de Seguros no devolvió una prima válida para la forma de pago.");
+      throw new GsError(
+        "General de Seguros no devolvió una prima válida para la forma de pago.",
+      );
     }
 
     const primaNeta = round2(forma.primaNeta);

@@ -4,6 +4,7 @@ export interface GsConfig {
   baseUrl: string;
   usuario: string;
   password: string;
+  idNegocio: string;
   descuentoDefault: number;
   timeoutMs: number;
 }
@@ -15,6 +16,7 @@ export function getGsConfig(): GsConfig {
     ).replace(/\/+$/, ""),
     usuario: process.env.GS_WS_USER || "",
     password: process.env.GS_WS_PASS || "",
+    idNegocio: process.env.GS_ID_NEGOCIO || "",
     descuentoDefault: Number(process.env.GS_DESCUENTO_DEFAULT) || 20,
     timeoutMs: Number(process.env.GS_TIMEOUT_MS) || 60_000,
   };
