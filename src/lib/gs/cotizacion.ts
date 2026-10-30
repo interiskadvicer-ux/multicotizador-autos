@@ -1,6 +1,6 @@
 // Cotización real de General de Seguros (CotizacionEmisionWS.generarCotizacion).
-// Una sola llamada devuelve todos los paquetes con sus coberturas y formas de
-// pago; se cotiza con y sin descuento para mostrar la prima de lista.
+// Una sola llamada devuelve todos los paquetes con sus formas de pago (y a veces
+// sus coberturas); se cotiza con y sin descuento para mostrar la prima de lista.
 
 import type {
   Cobertura,
@@ -197,6 +197,29 @@ async function generarCotizacion(
   return { idCotizacion, paquetes: leerPaquetes(xml) };
 }
 
+// Cuando generarCotizacion no trae las coberturas del paquete, se consultan en
+// CatalogoCoberturasWS para la cotización y paquete elegidos.
+async function obtenerCoberturas(
+  idCotizacion: string,
+  idPaquete: string,
+): Promise<CoberturaGs[]> {
+  const xml = await llamarGs(
+    "catalogoCoberturasWS",
+    "catalogoCoberturas",
+    "wsObtenerCoberturasCotizacion",
+    [
+      ["cotizacion", idCotizacion],
+      ["paquete", idPaquete],
+    ],
+  );
+  return bloques(xml, "coberturas").map((c) => ({
+    descripcion: valor(c, "descripcion"),
+    monto: valor(c, "monto"),
+    deducible: valor(c, "deducible"),
+    orden: num(valor(c, "orden")),
+  }));
+}
+
 // Cotiza con el descuento solicitado; si General de Seguros lo rechaza por
 // exceder el autorizado, lo reduce hasta encontrar uno aceptado.
 async function cotizarConDescuento(
@@ -351,7 +374,14 @@ export async function cotizarGsReal(
     const inicio = new Date();
     const fin = new Date(inicio);
     fin.setFullYear(fin.getFullYear() + 1);
-    const cobs = coberturas(paquete.coberturas);
+    const cobs = coberturas(
+      paquete.coberturas.length
+        ? paquete.coberturas
+        : await obtenerCoberturas(
+            conDescuento.cotizacion.idCotizacion,
+            paquete.id,
+          ),
+    );
     ajustesCoberturas(request.coberturasPersonalizadas, cobs, ajustes);
 
     return {
