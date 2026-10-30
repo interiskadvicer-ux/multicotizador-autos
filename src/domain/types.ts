@@ -30,6 +30,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de Zurich (p. ej. 098C6954). Requerida
   // para la cotización real de Zurich.
   claveZurich?: string;
+  // Clave del vehículo en el catálogo de General de Seguros (claveGs, p. ej.
+  // 10598). Requerida para la cotización real de General de Seguros.
+  claveGs?: string;
 }
 
 export interface Conductor {
