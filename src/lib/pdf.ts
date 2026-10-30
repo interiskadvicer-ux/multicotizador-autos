@@ -63,7 +63,11 @@ export function generarPdfCotizacion(
     `Vehículo: ${v.marca} ${v.modelo} ${v.anio}${
       v.version ? ` ${v.version}` : ""
     }`,
-    `Uso: ${v.uso === "COMERCIAL" ? "Comercial" : "Particular"}  ·  C.P.: ${
+    `Uso: ${v.uso === "COMERCIAL" ? "Comercial" : "Particular"}${
+      v.uso === "COMERCIAL" && v.tipoCarga && v.tipoCarga !== "VACIO"
+        ? ` (carga tipo ${v.tipoCarga})`
+        : ""
+    }  ·  C.P.: ${
       v.cp || "—"
     }  ·  Forma de pago: ${FORMA_PAGO_LABEL[request.formaPago]}`,
   ].filter(Boolean) as string[];
