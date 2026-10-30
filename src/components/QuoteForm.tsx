@@ -394,7 +394,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                   etiqueta: "HDI (clave HDI)",
                   valor: claveHdi,
                   onChange: (v: string) =>
-                    setClaveHdi(v.replace(/[^0-9-]/g, "").slice(0, 20)),
+                    setClaveHdi(v.replace(/[\u0000-\u001f]/g, "").slice(0, 200)),
                   placeholder: "Ej. 4579-2389654",
                   buscar: buscarHdi,
                 },

@@ -300,11 +300,11 @@ export function xmlVehiculoHdi(
   return (
     xmlCampos([
       ["idVehiculo", s.vehiculo.idVehiculo],
-      ["idMarca", 0],
+      ["idMarca", s.vehiculo.idMarca ?? 0],
       ["idModelo", s.anio],
-      ["idTipo", 0],
-      ["idVersion", 0],
-      ["idTransmision", 0],
+      ["idTipo", s.vehiculo.idTipo ?? 0],
+      ["idVersion", s.vehiculo.idVersion ?? 0],
+      ["idTransmision", s.vehiculo.idTransmision ?? 0],
       ["idUso", idUso],
       ["tipoVehiculo", s.vehiculo.tipoVehiculo],
       ["numeroMotor", u.numeroMotor || 0],
