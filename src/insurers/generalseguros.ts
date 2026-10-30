@@ -17,7 +17,8 @@ const cfg: PricingConfig = {
 export const generalSeguros: InsurerAdapter = {
   id: "generalseguros",
   nombre: "General de Seguros",
-  descuentoDefault: 20,
+  // Descuento máximo configurado por GS para el negocio 52-442.
+  descuentoDefault: 35,
   // Token + cotización con y sin descuento (con reintentos si excede el tope).
   timeoutMs: 45_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {

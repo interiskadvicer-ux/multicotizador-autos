@@ -17,7 +17,7 @@ export function getGsConfig(): GsConfig {
     usuario: process.env.GS_WS_USER || "",
     password: process.env.GS_WS_PASS || "",
     idNegocio: process.env.GS_ID_NEGOCIO || "",
-    descuentoDefault: Number(process.env.GS_DESCUENTO_DEFAULT) || 20,
+    descuentoDefault: Number(process.env.GS_DESCUENTO_DEFAULT) || 35,
     timeoutMs: Number(process.env.GS_TIMEOUT_MS) || 60_000,
   };
 }

@@ -26,13 +26,13 @@ import {
 const SERVICIO = "cotizacionEmisionWS";
 const MODULO = "cotizacionEmision";
 
-const PAQUETE_GS: Record<Paquete, RegExp> = {
+export const PAQUETE_GS: Record<Paquete, RegExp> = {
   AMPLIA: /AMPLIA/i,
   LIMITADA: /LIMITADA/i,
   RC: /\bRC\b|RESPONSABILIDAD CIVIL|B[AÁ]SIC/i,
 };
 
-const FORMA_PAGO_GS: Record<FormaPago, RegExp> = {
+export const FORMA_PAGO_GS: Record<FormaPago, RegExp> = {
   CONTADO: /ANUAL|CONTADO/i,
   SEMESTRAL: /SEMESTRAL/i,
   TRIMESTRAL: /TRIMESTRAL/i,
@@ -58,14 +58,15 @@ const ORDEN_COBERTURAS = COBERTURA_HOMOLOGADA.map(([, nombre]) => nombre);
 const PASO_DESCUENTO = 5;
 const MAX_REINTENTOS_DESCUENTO = 8;
 
-interface CoberturaGs {
+export interface CoberturaGs {
   descripcion: string;
   monto: string;
   deducible: string;
   orden: number;
 }
 
-interface FormaPagoGs {
+export interface FormaPagoGs {
+  id: string;
   nombre: string;
   primaNeta: number;
   derechos: number;
@@ -74,14 +75,14 @@ interface FormaPagoGs {
   primaTotal: number;
 }
 
-interface PaqueteGs {
+export interface PaqueteGs {
   id: string;
   nombre: string;
   coberturas: CoberturaGs[];
   formas: FormaPagoGs[];
 }
 
-interface CotizacionGs {
+export interface CotizacionGs {
   idCotizacion: string;
   paquetes: PaqueteGs[];
 }
@@ -139,6 +140,7 @@ function leerPaquetes(xml: string): PaqueteGs[] {
         orden: num(valor(c, "orden")),
       })),
       formas: bloques(p, "formasPagoDTO").map((f) => ({
+        id: valor(f, "idFormaPago"),
         nombre: valor(f, "nombre"),
         primaNeta: num(valor(f, "primaNeta")),
         derechos: num(valor(f, "derechos")),
@@ -150,7 +152,7 @@ function leerPaquetes(xml: string): PaqueteGs[] {
   });
 }
 
-async function generarCotizacion(
+export async function generarCotizacion(
   request: CotizacionRequest,
   claveGs: string,
   descuento: number,
