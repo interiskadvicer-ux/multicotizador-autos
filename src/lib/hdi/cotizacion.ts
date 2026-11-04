@@ -299,12 +299,13 @@ export function xmlVehiculoHdi(
   const riesgo = riesgoCargaHdi(s);
   return (
     xmlCampos([
-      ["idVehiculo", s.vehiculo.idVehiculo],
-      ["idMarca", s.vehiculo.idMarca ?? 0],
+      // HDI pide idVehiculo vacío (con 0 marca error).
+      ["idVehiculo", ""],
+      ["idMarca", s.vehiculo.idMarca],
       ["idModelo", s.anio],
-      ["idTipo", s.vehiculo.idTipo ?? 0],
-      ["idVersion", s.vehiculo.idVersion ?? 0],
-      ["idTransmision", s.vehiculo.idTransmision ?? 0],
+      ["idTipo", s.vehiculo.idTipo],
+      ["idVersion", s.vehiculo.idVersion],
+      ["idTransmision", s.vehiculo.idTransmision],
       ["idUso", idUso],
       ["tipoVehiculo", s.vehiculo.tipoVehiculo],
       ["numeroMotor", u.numeroMotor || 0],

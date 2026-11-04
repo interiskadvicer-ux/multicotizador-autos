@@ -1,6 +1,7 @@
 // Catálogo vehicular de HDI en cascada: marcas → tipos (submarcas) →
-// versiones → transmisiones → información del vehículo (idVehiculo). Se
-// recorren automóviles residentes y pick ups.
+// versiones → transmisiones. HDI no garantiza ObtenerInformacionVehiculo, así
+// que el vehículo viaja por marca, tipo, versión y transmisión, con
+// idVehiculo vacío. Se recorren automóviles residentes y pick ups.
 
 import { getHdiConfig } from "./config";
 import { bloques, llamarHdi, valor, xmlCampos, type Campos } from "./client";
@@ -13,7 +14,7 @@ const MAX_VERSIONES = 40;
 const CONCURRENCIA = 5;
 
 export interface VehiculoHdi {
-  // `${tipoVehiculo}-${idVehiculo}|${idMarca}|${idTipo}|${idVersion}|${idTransmision}`.
+  // `${tipoVehiculo}|${idMarca}|${idTipo}|${idVersion}|${idTransmision}`.
   claveHdi: string;
   tipoVehiculo: number;
   marca: string;
@@ -30,12 +31,10 @@ export interface BusquedaVehiculoHdi {
 
 export interface ClaveHdi {
   tipoVehiculo: number;
-  idVehiculo: string;
-  // Ids del catálogo en cascada; HDI los pide en datosVehiculo.
-  idMarca?: string;
-  idTipo?: string;
-  idVersion?: string;
-  idTransmision?: string;
+  idMarca: string;
+  idTipo: string;
+  idVersion: string;
+  idTransmision: string;
 }
 
 interface Entrada {
@@ -44,36 +43,32 @@ interface Entrada {
 }
 
 export function formatearClaveHdi(clave: ClaveHdi): string {
-  const base = `${clave.tipoVehiculo}-${clave.idVehiculo}`;
-  const { idMarca, idTipo, idVersion, idTransmision } = clave;
-  return idMarca && idTipo && idVersion && idTransmision
-    ? [base, idMarca, idTipo, idVersion, idTransmision].join("|")
-    : base;
+  return [
+    clave.tipoVehiculo,
+    clave.idMarca,
+    clave.idTipo,
+    clave.idVersion,
+    clave.idTransmision,
+  ].join("|");
 }
 
-// "4579-2389654|3514|MX-5|35 ANIVERSARIO|3800" → { tipoVehiculo: 4579,
-// idVehiculo: "2389654", idMarca: "3514", ... }. Tipo y versión de HDI son
-// texto, por eso el separador es "|". Sin prefijo se asume automóvil
-// residente; la clave corta (sin ids del catálogo) sigue aceptándose.
+// "4579|3514|MX-5|35 ANIVERSARIO|3800" → { tipoVehiculo: 4579, idMarca:
+// "3514", idTipo: "MX-5", ... }. Tipo y versión de HDI son texto, por eso el
+// separador es "|". Se acepta el formato anterior "4579-2389654|..." pero
+// se descarta el idVehiculo.
 export function parsearClaveHdi(clave: string): ClaveHdi | undefined {
-  const [base, ...ids] = clave.trim().split("|");
-  const m = /^(?:(\d+)-)?(\d+)$/.exec(base.trim());
-  if (!m || (ids.length !== 0 && ids.length !== 4)) return undefined;
-  const [idMarca, idTipo, idVersion, idTransmision] = ids.map((x) => x.trim());
-  if (
-    ids.length &&
-    !(
-      /^\d+$/.test(idMarca) &&
-      idTipo &&
-      idVersion &&
-      /^\d+$/.test(idTransmision)
-    )
-  )
-    return undefined;
+  const partes = clave.split("|").map((x) => x.trim());
+  if (partes.length !== 5) return undefined;
+  const [tipo, idMarca, idTipo, idVersion, idTransmision] = partes;
+  const m = /^(\d+)(?:-\d+)?$/.exec(tipo);
+  if (!m || !/^\d+$/.test(idMarca) || !idTipo || !idVersion) return undefined;
+  if (!/^\d+$/.test(idTransmision)) return undefined;
   return {
-    tipoVehiculo: m[1] ? Number(m[1]) : TIPO_VEHICULO_AUTO,
-    idVehiculo: m[2],
-    ...(ids.length ? { idMarca, idTipo, idVersion, idTransmision } : {}),
+    tipoVehiculo: Number(m[1]),
+    idMarca,
+    idTipo,
+    idVersion,
+    idTransmision,
   };
 }
 
@@ -218,29 +213,6 @@ async function transmisiones(
   );
 }
 
-async function idVehiculo(
-  tipo: number,
-  anio: number,
-  idMarca: string,
-  idTipo: string,
-  idVersion: string,
-  idTransmision: string,
-): Promise<string> {
-  const xml = await consulta(
-    "ObtenerInformacionVehiculo",
-    "ObtenerInformacionVehiculoRequest",
-    [
-      ["IdMarca", idMarca],
-      ["IdTipo", idTipo],
-      ["IdTipoVehiculo", tipo],
-      ["IdVersion", idVersion],
-      ["idModelo", anio],
-      ["idTransmision", idTransmision],
-    ],
-  );
-  return valor(xml, "idVehiculo");
-}
-
 async function buscarPorTipo(
   tipo: number,
   filtros: BusquedaVehiculoHdi,
@@ -283,37 +255,20 @@ async function buscarPorTipo(
     }
   }
 
-  const vehiculos = await enLotes(
-    combinaciones,
-    async ({ sub, version, transmision }) => {
-      const id = await idVehiculo(
-        tipo,
-        filtros.anio,
-        marca.id,
-        sub.id,
-        version.id,
-        transmision.id,
-      );
-      return id && id !== "0"
-        ? {
-            claveHdi: formatearClaveHdi({
-              tipoVehiculo: tipo,
-              idVehiculo: id,
-              idMarca: marca.id,
-              idTipo: sub.id,
-              idVersion: version.id,
-              idTransmision: transmision.id,
-            }),
-            tipoVehiculo: tipo,
-            marca: marca.nombre,
-            submarca: sub.nombre,
-            anio: filtros.anio,
-            descripcion: `${version.nombre} ${transmision.nombre}`,
-          }
-        : undefined;
-    },
-  );
-  return vehiculos.filter((v): v is VehiculoHdi => Boolean(v));
+  return combinaciones.map(({ sub, version, transmision }) => ({
+    claveHdi: formatearClaveHdi({
+      tipoVehiculo: tipo,
+      idMarca: marca.id,
+      idTipo: sub.id,
+      idVersion: version.id,
+      idTransmision: transmision.id,
+    }),
+    tipoVehiculo: tipo,
+    marca: marca.nombre,
+    submarca: sub.nombre,
+    anio: filtros.anio,
+    descripcion: `${version.nombre} ${transmision.nombre}`,
+  }));
 }
 
 export async function buscarVehiculos(
