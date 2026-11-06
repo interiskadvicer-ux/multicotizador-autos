@@ -9,7 +9,7 @@ import { HdiNoConfigurado } from "@/lib/hdi/client";
 // Búsqueda en el catálogo vehicular de HDI para obtener la
 // claveHdi a partir de marca / submarca / año.
 export async function GET(req: Request) {
-  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR"]);
+  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"]);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

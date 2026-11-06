@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSesion } from "@/lib/auth";
-import NavBar from "@/components/NavBar";
+import { contarSolicitudesPendientes } from "@/lib/agentes";
+import Sidebar from "@/components/Sidebar";
 
-// Layout de las páginas autenticadas: valida sesión y monta la navegación.
 export default async function AppLayout({
   children,
 }: {
@@ -10,11 +10,12 @@ export default async function AppLayout({
 }) {
   const sesion = await getSesion();
   if (!sesion) redirect("/login");
+  const pendientes = sesion.rol === "ADMIN" ? contarSolicitudesPendientes() : 0;
 
   return (
-    <div className="min-h-screen">
-      <NavBar sesion={sesion} />
-      {children}
+    <div className="min-h-screen bg-slate-50 lg:flex">
+      <Sidebar sesion={sesion} solicitudesPendientes={pendientes} />
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }

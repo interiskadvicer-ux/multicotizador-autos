@@ -8,7 +8,7 @@ import {
 import { registrarActividad } from "@/lib/activity";
 import type { Rol } from "@/domain/admin";
 
-const ROLES_VALIDOS: Rol[] = ["ADMIN", "POLIZAS", "COTIZADOR"];
+const ROLES_VALIDOS: Rol[] = ["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"];
 const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function GET() {

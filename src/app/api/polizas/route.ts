@@ -5,10 +5,9 @@ import { registrarActividad } from "@/lib/activity";
 import { parsePolizaInput } from "@/lib/validate-poliza";
 
 export async function GET() {
-  const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS"]);
+  const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS", "AGENTE"]);
   if (error) return error;
-  void sesion;
-  return NextResponse.json({ polizas: listarPolizasConEstado() });
+  return NextResponse.json({ polizas: listarPolizasConEstado(sesion.rol === "AGENTE" ? sesion.id : undefined) });
 }
 
 export async function POST(req: Request) {

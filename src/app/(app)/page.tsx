@@ -1,184 +1,208 @@
-"use client";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSesion, tieneAcceso } from "@/lib/auth";
+import { listarPolizasConEstado } from "@/lib/polizas";
+import { contarCotizacionesPorEstado, listarCotizaciones } from "@/lib/cotizaciones";
+import { contarSolicitudesPendientes } from "@/lib/agentes";
+import { totalCobrado } from "@/lib/pagos";
+import { formatMXN } from "@/lib/format";
 
-import { useState } from "react";
-import QuoteForm from "@/components/QuoteForm";
-import QuoteResults from "@/components/QuoteResults";
-import type {
-  CoberturasPersonalizadas,
-  CotizacionRequest,
-  CotizacionResultado,
-} from "@/domain/types";
-import { ASEGURADORAS } from "@/insurers/registry";
+export const dynamic = "force-dynamic";
 
-function descuentosIniciales(): Record<string, number> {
-  return Object.fromEntries(
-    ASEGURADORAS.map((a) => [a.id, a.descuentoDefault]),
+function Kpi({
+  titulo,
+  valor,
+  detalle,
+  href,
+  tono = "slate",
+}: {
+  titulo: string;
+  valor: string;
+  detalle?: string;
+  href?: string;
+  tono?: "slate" | "amber" | "red" | "emerald" | "sky";
+}) {
+  const tonos = {
+    slate: "text-slate-900",
+    amber: "text-amber-600",
+    red: "text-red-600",
+    emerald: "text-emerald-600",
+    sky: "text-sky-700",
+  };
+  const contenido = (
+    <div className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-sky-300">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{titulo}</div>
+      <div className={`mt-2 text-2xl font-bold ${tonos[tono]}`}>{valor}</div>
+      {detalle && <div className="mt-1 text-xs text-slate-500">{detalle}</div>}
+    </div>
   );
+  return href ? <Link href={href}>{contenido}</Link> : contenido;
 }
 
-async function pedirCotizacion(
-  request: CotizacionRequest,
-): Promise<CotizacionResultado[]> {
-  const res = await fetch("/api/cotizar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error ?? "No se pudo completar la cotización.");
-  }
-  const data = await res.json();
-  return data.resultados as CotizacionResultado[];
-}
+export default async function DashboardPage() {
+  const sesion = await getSesion();
+  if (!sesion) redirect("/login");
 
-export default function Home() {
-  const [resultados, setResultados] = useState<CotizacionResultado[] | null>(
-    null,
-  );
-  const [ultimaSolicitud, setUltimaSolicitud] =
-    useState<CotizacionRequest | null>(null);
-  const [descuentos, setDescuentos] =
-    useState<Record<string, number>>(descuentosIniciales);
-  const [cargando, setCargando] = useState(false);
-  const [recotizando, setRecotizando] = useState<string | null>(null);
-  const [coberturas, setCoberturas] = useState<CoberturasPersonalizadas>({});
-  const [recotizandoTodo, setRecotizandoTodo] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const esAdmin = sesion.rol === "ADMIN";
+  const vePolizas = tieneAcceso(sesion.rol, ["ADMIN", "POLIZAS", "AGENTE"]);
+  const polizas = vePolizas
+    ? listarPolizasConEstado(sesion.rol === "AGENTE" ? sesion.id : undefined)
+    : [];
+  const vigentes = polizas.filter((p) => p.estado !== "VENCIDA");
+  const porVencer = polizas.filter((p) => p.estado === "POR_VENCER");
+  const proximas = polizas.filter((p) => p.estado === "PROXIMA");
+  const vencidas = polizas.filter((p) => p.estado === "VENCIDA");
+  const primaVigente = vigentes.reduce((s, p) => s + p.primaNeta, 0);
+  const porCobrar = polizas.filter((p) => p.estadoPago !== "PAGADA");
+  const ahora = new Date();
+  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toLocaleDateString("en-CA");
+  const cobradoMes = vePolizas
+    ? totalCobrado(inicioMes, sesion.rol === "AGENTE" ? sesion.id : undefined)
+    : 0;
 
-  async function cotizar(request: CotizacionRequest) {
-    const completa: CotizacionRequest = {
-      ...request,
-      descuentos,
-      coberturasPersonalizadas: Object.keys(coberturas).length
-        ? coberturas
-        : undefined,
-    };
-    setCargando(true);
-    setError(null);
-    setResultados(null);
-    setUltimaSolicitud(completa);
-    try {
-      setResultados(await pedirCotizacion(completa));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setCargando(false);
-    }
-  }
-
-  // Recotiza una sola aseguradora (sus 3 paquetes) con un nuevo descuento y
-  // reemplaza sus filas en la comparativa.
-  async function recotizar(aseguradoraId: string, descuento: number) {
-    if (!ultimaSolicitud) return;
-    const nuevosDescuentos = { ...descuentos, [aseguradoraId]: descuento };
-    const request: CotizacionRequest = {
-      ...ultimaSolicitud,
-      descuentos: nuevosDescuentos,
-      aseguradoras: [aseguradoraId],
-    };
-    setDescuentos(nuevosDescuentos);
-    setUltimaSolicitud({ ...ultimaSolicitud, descuentos: nuevosDescuentos });
-    setRecotizando(aseguradoraId);
-    setError(null);
-    try {
-      const nuevos = await pedirCotizacion(request);
-      // La aseguradora puede recortar el descuento a su tope: el input debe
-      // reflejar el porcentaje realmente aplicado.
-      const aplicados = nuevos
-        .filter((r) => r.status === "success" && r.prima)
-        .map((r) => r.prima!.descuentoPorcentaje);
-      if (aplicados.length) {
-        const efectivo = Math.max(...aplicados);
-        if (efectivo !== descuento) {
-          setDescuentos((d) => ({ ...d, [aseguradoraId]: efectivo }));
-        }
-      }
-      setResultados((prev) => [
-        ...(prev ?? []).filter((r) => r.aseguradoraId !== aseguradoraId),
-        ...nuevos,
-      ]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setRecotizando(null);
-    }
-  }
-
-  // Recotiza las 8 aseguradoras con nuevas sumas aseguradas / deducibles,
-  // conservando la comparativa anterior en pantalla mientras responde.
-  async function recotizarCoberturas(nuevas: CoberturasPersonalizadas) {
-    if (!ultimaSolicitud) return;
-    const request: CotizacionRequest = {
-      ...ultimaSolicitud,
-      descuentos,
-      aseguradoras: undefined,
-      coberturasPersonalizadas: Object.keys(nuevas).length ? nuevas : undefined,
-    };
-    setCoberturas(nuevas);
-    setUltimaSolicitud(request);
-    setRecotizandoTodo(true);
-    setError(null);
-    try {
-      setResultados(await pedirCotizacion(request));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setRecotizandoTodo(false);
-    }
-  }
+  const usuarioFiltro = esAdmin ? undefined : sesion.id;
+  const conteo = contarCotizacionesPorEstado(usuarioFiltro);
+  const recientes = listarCotizaciones(usuarioFiltro).slice(0, 5);
+  const renovaciones = polizas
+    .filter((p) => p.estado === "POR_VENCER" || p.estado === "PROXIMA")
+    .slice(0, 5);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <header className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-          Multicotizador de Autos
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Compara en un solo lugar las primas y coberturas de{" "}
-          {ASEGURADORAS.length} aseguradoras.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {ASEGURADORAS.map((a) => (
-            <span
-              key={a.id}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600"
-            >
-              {a.nombre}
-            </span>
-          ))}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Hola, {sesion.nombre.split(" ")[0]}</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {esAdmin ? "Resumen general del portal." : "Resumen de tu cartera y cotizaciones."}
+          </p>
         </div>
+        <Link
+          href="/cotizar"
+          className="rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-700"
+        >
+          Cotizar auto
+        </Link>
       </header>
 
-      <QuoteForm onCotizar={cotizar} cargando={cargando} />
-
-      {error && (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {cargando && (
-        <div className="mt-8 flex items-center gap-3 text-sm text-slate-500">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
-          Consultando web services de las aseguradoras…
-        </div>
-      )}
-
-      {resultados && (
-        <div className="mt-8">
-          <QuoteResults
-            resultados={resultados}
-            request={ultimaSolicitud}
-            descuentos={descuentos}
-            recotizando={recotizando}
-            onRecotizar={recotizar}
-            coberturas={coberturas}
-            recotizandoTodo={recotizandoTodo}
-            onCoberturas={recotizarCoberturas}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {vePolizas && (
+          <>
+            <Kpi
+              titulo="Prima neta vigente"
+              valor={formatMXN(primaVigente)}
+              detalle={`${vigentes.length} pólizas vigentes`}
+              href="/polizas"
+              tono="sky"
+            />
+            <Kpi
+              titulo="Renovaciones ≤30 días"
+              valor={String(porVencer.length)}
+              detalle={`${proximas.length} más en 31–60 días`}
+              href="/polizas"
+              tono="amber"
+            />
+            <Kpi titulo="Pólizas vencidas" valor={String(vencidas.length)} href="/polizas" tono="red" />
+            <Kpi
+              titulo="Prima cobrada este mes"
+              valor={formatMXN(cobradoMes)}
+              detalle={`${porCobrar.length} pólizas por cobrar · ${formatMXN(
+                porCobrar.reduce((s, p) => s + p.saldo, 0),
+              )}`}
+              href={sesion.rol === "AGENTE" ? "/polizas" : "/cobranza"}
+              tono="emerald"
+            />
+          </>
+        )}
+        <Kpi
+          titulo="Cotizaciones guardadas"
+          valor={String(conteo.GUARDADA)}
+          href="/cotizaciones"
+        />
+        <Kpi
+          titulo="Emisiones solicitadas"
+          valor={String(conteo.EMISION_SOLICITADA)}
+          detalle={`${conteo.EMITIDA} emitidas`}
+          href="/cotizaciones"
+          tono="emerald"
+        />
+        {esAdmin && (
+          <Kpi
+            titulo="Agentes por autorizar"
+            valor={String(contarSolicitudesPendientes())}
+            href="/admin/agentes"
+            tono="amber"
           />
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-800">Cotizaciones recientes</h2>
+            <Link href="/cotizaciones" className="text-xs font-medium text-sky-700 hover:underline">
+              Ver todas
+            </Link>
+          </div>
+          {recientes.length === 0 ? (
+            <p className="text-sm text-slate-400">Aún no hay cotizaciones guardadas.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {recientes.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                  <Link href={`/cotizar?id=${c.id}`} className="min-w-0 hover:underline">
+                    <div className="truncate font-medium text-slate-800">
+                      #{c.id} · {c.cliente || "Sin cliente"}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">
+                      {c.vehiculo}
+                      {esAdmin && c.usuarioNombre ? ` · ${c.usuarioNombre}` : ""}
+                    </div>
+                  </Link>
+                  <span className="shrink-0 text-right text-xs text-slate-600">
+                    {c.primaTotal != null ? formatMXN(c.primaTotal) : "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {vePolizas && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Próximas renovaciones</h2>
+              <Link href="/polizas" className="text-xs font-medium text-sky-700 hover:underline">
+                Ver pólizas
+              </Link>
+            </div>
+            {renovaciones.length === 0 ? (
+              <p className="text-sm text-slate-400">No hay renovaciones en los próximos 60 días.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100 text-sm">
+                {renovaciones.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-slate-800">
+                        {p.numeroPoliza} · {p.asegurado}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {p.aseguradora} · vence {p.vigenciaFin}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.estado === "POR_VENCER" ? "bg-orange-50 text-orange-700" : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {p.diasParaVencer} d
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </div>
     </main>
   );
 }
