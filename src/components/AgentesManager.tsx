@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { EstadoSolicitud, SolicitudAgente } from "@/lib/agentes";
 
 const ETIQUETA_DOC: Record<string, string> = {
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function AgentesManager({ plantillas }: Props) {
+  const router = useRouter();
   const [solicitudes, setSolicitudes] = useState<SolicitudAgente[]>([]);
   const [filtro, setFiltro] = useState<EstadoSolicitud | "TODAS">("PENDIENTE");
   const [cargando, setCargando] = useState(true);
@@ -68,6 +70,7 @@ export default function AgentesManager({ plantillas }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "No se pudo actualizar.");
       setSolicitudes((prev) => prev.map((x) => (x.id === s.id ? data.solicitud : x)));
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error inesperado.");
     } finally {
