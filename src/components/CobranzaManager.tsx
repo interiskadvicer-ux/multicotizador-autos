@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PolizaConEstado } from "@/lib/polizas";
 import type { Coincidencia } from "@/lib/conciliacion";
 import type { EstadoCuenta, Pago } from "@/lib/pagos";
@@ -18,6 +19,7 @@ interface Fila extends Coincidencia {
 }
 
 export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
+  const router = useRouter();
   const [polizas, setPolizas] = useState<PolizaConEstado[]>([]);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [estados, setEstados] = useState<EstadoCuenta[]>([]);
@@ -138,6 +140,8 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
     setConciliacion(null);
     setArchivo(null);
     cargar();
+    // Invalida la caché del router para que el dashboard muestre lo cobrado.
+    router.refresh();
   }
 
   async function registrarManual(e: React.FormEvent) {
@@ -159,6 +163,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
     setAviso("Pago registrado.");
     setManual({ polizaId: "", monto: "", fechaPago: hoy(), referencia: "", notas: "" });
     cargar();
+    router.refresh();
   }
 
   async function eliminar(p: Pago) {
@@ -166,6 +171,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
     const res = await fetch(`/api/pagos/${p.id}`, { method: "DELETE" });
     if (!res.ok) setError("No se pudo eliminar el pago.");
     cargar();
+    router.refresh();
   }
 
   const polizaManual = polizas.find((p) => p.id === Number(manual.polizaId));

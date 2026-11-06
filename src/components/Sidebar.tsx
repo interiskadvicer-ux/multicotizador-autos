@@ -93,6 +93,7 @@ export default function Sidebar({ sesion, solicitudesPendientes }: Props) {
                     <Link
                       key={l.href}
                       href={l.href}
+                      prefetch={false}
                       onClick={() => setAbierto(false)}
                       className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition ${
                         activo ? "bg-sky-600 text-white" : "hover:bg-slate-800"
