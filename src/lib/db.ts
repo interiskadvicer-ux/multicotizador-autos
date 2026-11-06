@@ -180,6 +180,9 @@ function inicializarEsquema(database: Database.Database): void {
   if (!columnasPolizas.some((c) => c.name === "forma_pago")) {
     database.exec("ALTER TABLE policies ADD COLUMN forma_pago TEXT NOT NULL DEFAULT 'ANUAL'");
   }
+  if (!columnasPolizas.some((c) => c.name === "caratula")) {
+    database.exec("ALTER TABLE policies ADD COLUMN caratula TEXT");
+  }
   const columnasPagos = database
     .prepare("PRAGMA table_info(policy_payments)")
     .all() as { name: string }[];

@@ -36,6 +36,7 @@ interface FormState {
   vigenciaFin: string;
   notas: string;
   formaPago: FormaPagoPoliza;
+  caratula: string | null;
   agenteId: string;
 }
 
@@ -58,6 +59,7 @@ const FORM_VACIO: FormState = {
   vigenciaFin: "",
   notas: "",
   formaPago: "ANUAL",
+  caratula: null,
   agenteId: "",
 };
 
@@ -83,6 +85,8 @@ export default function PolizasManager({ soloLectura = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [leyendoPdf, setLeyendoPdf] = useState(false);
+  const [avisoPdf, setAvisoPdf] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"TODAS" | "VENCIMIENTOS">("TODAS");
 
   async function cargar() {
@@ -121,7 +125,50 @@ export default function PolizasManager({ soloLectura = false }: Props) {
   const visibles = filtro === "TODAS" ? polizas : vencimientos;
 
   function abrirNueva() {
+    setAvisoPdf(null);
     setForm({ ...FORM_VACIO });
+  }
+
+  // Sube la carátula, prellena los campos detectados y deja el PDF ligado a
+  // la póliza al guardar.
+  async function leerPdf(archivo: File) {
+    if (!form) return;
+    setLeyendoPdf(true);
+    setError(null);
+    setAvisoPdf(null);
+    try {
+      const fd = new FormData();
+      fd.append("archivo", archivo);
+      const res = await fetch("/api/polizas/leer-pdf", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo leer el PDF.");
+      const d = data.datos as Partial<Record<keyof FormState, string | number>>;
+      const campos = Object.keys(d).length;
+      setForm((f) =>
+        f && {
+          ...f,
+          numeroPoliza: d.numeroPoliza ? String(d.numeroPoliza) : f.numeroPoliza,
+          ramo: d.ramo ? String(d.ramo) : f.ramo,
+          aseguradora: d.aseguradora ? String(d.aseguradora) : f.aseguradora,
+          asegurado: d.asegurado ? String(d.asegurado) : f.asegurado,
+          primaNeta: d.primaNeta != null ? String(d.primaNeta) : f.primaNeta,
+          primaTotal: d.primaTotal != null ? String(d.primaTotal) : f.primaTotal,
+          vigenciaInicio: d.vigenciaInicio ? String(d.vigenciaInicio) : f.vigenciaInicio,
+          vigenciaFin: d.vigenciaFin ? String(d.vigenciaFin) : f.vigenciaFin,
+          formaPago: (d.formaPago as FormaPagoPoliza) ?? f.formaPago,
+          caratula: data.caratula,
+        },
+      );
+      setAvisoPdf(
+        data.sinTexto
+          ? "El PDF no tiene texto (parece escaneado): captura los datos a mano. El PDF quedará guardado con la póliza."
+          : `Se llenaron ${campos} de 9 campos desde el PDF. Revísalos antes de guardar.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setLeyendoPdf(false);
+    }
   }
 
   function abrirEdicion(p: PolizaConEstado) {
@@ -137,6 +184,7 @@ export default function PolizasManager({ soloLectura = false }: Props) {
       vigenciaFin: p.vigenciaFin,
       notas: p.notas ?? "",
       formaPago: p.formaPago ?? "ANUAL",
+      caratula: null,
       agenteId: p.agenteId ? String(p.agenteId) : "",
     });
   }
@@ -157,6 +205,7 @@ export default function PolizasManager({ soloLectura = false }: Props) {
       vigenciaFin: form.vigenciaFin,
       notas: form.notas || undefined,
       formaPago: form.formaPago,
+      caratula: form.caratula,
       agenteId: form.agenteId ? Number(form.agenteId) : null,
     };
     try {
@@ -251,9 +300,28 @@ export default function PolizasManager({ soloLectura = false }: Props) {
           onSubmit={guardar}
           className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
         >
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">
-            {form.id ? "Editar póliza" : "Nueva póliza"}
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">
+              {form.id ? "Editar póliza" : "Nueva póliza"}
+            </h2>
+            <label className="cursor-pointer rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50">
+              {leyendoPdf ? "Leyendo PDF…" : form.caratula ? "PDF cargado · cambiar" : "Llenar desde PDF de la póliza"}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={leyendoPdf}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) leerPdf(f);
+                }}
+              />
+            </label>
+          </div>
+          {avisoPdf && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">{avisoPdf}</div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className={labelCls}>Agente</label>
@@ -455,6 +523,16 @@ export default function PolizasManager({ soloLectura = false }: Props) {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">
                       {p.numeroPoliza}
+                      {p.caratula && (
+                        <a
+                          href={`/api/polizas/${p.id}/caratula`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-2 text-xs font-normal text-sky-700 hover:underline"
+                        >
+                          PDF
+                        </a>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">
                       {p.ramo}

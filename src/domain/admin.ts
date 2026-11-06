@@ -65,6 +65,8 @@ export interface Poliza {
   notas?: string;
   // Define cuántos recibos se esperan en la vigencia (anual = 1).
   formaPago?: FormaPagoPoliza;
+  // Archivo PDF de la carátula, guardado en uploads/polizas.
+  caratula?: string | null;
   // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
   agenteId?: number | null;
   // Suma de pagos registrados (manuales o por estado de cuenta).

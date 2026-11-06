@@ -1,3 +1,4 @@
+import { caratulaValida } from "@/lib/polizas";
 import { RECIBOS_POR_FORMA, type FormaPagoPoliza, type PolizaInput } from "@/domain/admin";
 
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,6 +29,10 @@ export function parsePolizaInput(
   const formaPago = String(b.formaPago ?? "ANUAL").toUpperCase() as FormaPagoPoliza;
   if (!(formaPago in RECIBOS_POR_FORMA))
     return { data: null, error: "La forma de pago no es válida." };
+  const caratula =
+    typeof b.caratula === "string" && b.caratula ? b.caratula : null;
+  if (caratula && !caratulaValida(caratula))
+    return { data: null, error: "El PDF de la póliza no es válido; súbelo de nuevo." };
   const notas =
     typeof b.notas === "string" && b.notas.trim() ? b.notas.trim() : undefined;
 
@@ -61,6 +66,7 @@ export function parsePolizaInput(
       vigenciaFin,
       notas,
       formaPago,
+      caratula,
       agenteId,
     },
     error: null,

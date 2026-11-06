@@ -1,4 +1,7 @@
-import { db } from "@/lib/db";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { db, directorioArchivos } from "@/lib/db";
 import type { FormaPagoPoliza, Poliza, PolizaInput } from "@/domain/admin";
 
 interface PolicyRow {
@@ -13,6 +16,7 @@ interface PolicyRow {
   vigencia_fin: string;
   notas: string | null;
   forma_pago: FormaPagoPoliza | null;
+  caratula: string | null;
   agente_id: number | null;
   pagado: number | null;
   created_by: number | null;
@@ -33,6 +37,7 @@ function mapPoliza(row: PolicyRow): Poliza {
     vigenciaFin: row.vigencia_fin,
     notas: row.notas ?? undefined,
     formaPago: row.forma_pago ?? "ANUAL",
+    caratula: row.caratula,
     agenteId: row.agente_id,
     pagado: row.pagado ?? 0,
     createdBy: row.created_by,
@@ -71,8 +76,8 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
     .prepare(
       `INSERT INTO policies
         (numero_poliza, ramo, aseguradora, asegurado, prima_neta, prima_total,
-         vigencia_inicio, vigencia_fin, notas, forma_pago, agente_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         vigencia_inicio, vigencia_fin, notas, forma_pago, caratula, agente_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.numeroPoliza.trim(),
@@ -85,6 +90,7 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
       input.vigenciaFin,
       input.notas?.trim() || null,
       input.formaPago ?? "ANUAL",
+      input.caratula ?? null,
       input.agenteId ?? null,
       createdBy,
     );
@@ -101,7 +107,7 @@ export function actualizarPoliza(
     `UPDATE policies SET
        numero_poliza = ?, ramo = ?, aseguradora = ?, asegurado = ?,
        prima_neta = ?, prima_total = ?, vigencia_inicio = ?, vigencia_fin = ?,
-       notas = ?, forma_pago = ?, agente_id = ?, updated_at = datetime('now')
+       notas = ?, forma_pago = ?, caratula = COALESCE(?, caratula), agente_id = ?, updated_at = datetime('now')
      WHERE id = ?`,
   ).run(
     input.numeroPoliza.trim(),
@@ -114,6 +120,7 @@ export function actualizarPoliza(
     input.vigenciaFin,
     input.notas?.trim() || null,
     input.formaPago ?? "ANUAL",
+    input.caratula ?? null,
     input.agenteId ?? null,
     id,
   );
@@ -186,4 +193,24 @@ export function vencimientos(agenteId?: number): PolizaConEstado[] {
   return listarPolizasConEstado(agenteId)
     .filter((p) => p.estado !== "VIGENTE")
     .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
+}
+
+const RE_CARATULA = /^\d+-[a-f0-9]{12}\.pdf$/;
+
+// Guarda el PDF de una carátula y devuelve el nombre con que se asocia a la
+// póliza al guardarla.
+export function guardarCaratula(datos: Buffer): string {
+  const archivo = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.pdf`;
+  fs.writeFileSync(path.join(directorioArchivos("polizas"), archivo), datos);
+  return archivo;
+}
+
+export function caratulaValida(archivo: string): boolean {
+  return RE_CARATULA.test(archivo) && fs.existsSync(path.join(directorioArchivos("polizas"), archivo));
+}
+
+export function leerCaratulaArchivo(archivo: string): Buffer | null {
+  if (!RE_CARATULA.test(archivo)) return null;
+  const ruta = path.join(directorioArchivos("polizas"), archivo);
+  return fs.existsSync(ruta) ? fs.readFileSync(ruta) : null;
 }
