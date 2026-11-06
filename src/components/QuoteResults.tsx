@@ -14,6 +14,7 @@ import {
 import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
 import { generarPdfCotizacion } from "@/lib/pdf";
+import EmisionHdi from "./EmisionHdi";
 
 interface Props {
   resultados: CotizacionResultado[];
@@ -50,7 +51,8 @@ export default function QuoteResults({
   const [detalle, setDetalle] = useState<Celda | null>(null);
 
   const porCelda = new Map<string, CotizacionResultado>();
-  for (const r of resultados) porCelda.set(`${r.aseguradoraId}|${r.paquete}`, r);
+  for (const r of resultados)
+    porCelda.set(`${r.aseguradoraId}|${r.paquete}`, r);
   const celda = (id: string, p: Paquete) => porCelda.get(`${id}|${p}`);
 
   const mejorPorPaquete: Partial<Record<Paquete, number>> = {};
@@ -158,7 +160,10 @@ export default function QuoteResults({
                   }
                   detalle={
                     abiertaEnFila && seleccionado ? (
-                      <Detalle resultado={seleccionado} />
+                      <Detalle
+                        resultado={seleccionado}
+                        request={request ? { ...request, descuentos } : null}
+                      />
                     ) : null
                   }
                 />
@@ -434,9 +439,30 @@ function CeldaPrima({
   );
 }
 
-function Detalle({ resultado }: { resultado: CotizacionResultado }) {
+function Detalle({
+  resultado,
+  request,
+}: {
+  resultado: CotizacionResultado;
+  request: CotizacionRequest | null;
+}) {
+  const [emitiendo, setEmitiendo] = useState(false);
   const prima = resultado.prima;
   const label = COLUMNAS.find((c) => c.paquete === resultado.paquete)?.label;
+  const emiteHdi =
+    resultado.aseguradoraId === "hdi" &&
+    resultado.origen === "real" &&
+    resultado.status === "success" &&
+    request !== null;
+  if (emitiendo && emiteHdi) {
+    return (
+      <EmisionHdi
+        request={request}
+        resultado={resultado}
+        onCerrar={() => setEmitiendo(false)}
+      />
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[260px_1fr]">
       <div>
@@ -487,10 +513,20 @@ function Detalle({ resultado }: { resultado: CotizacionResultado }) {
           {resultado.origen === "real"
             ? "Prima devuelta por el web service de la aseguradora."
             : "Prima estimada (simulada); la aseguradora aún no está conectada."}
-          {resultado.noCotizacion && ` No. cotización ${resultado.noCotizacion}.`}
+          {resultado.noCotizacion &&
+            ` No. cotización ${resultado.noCotizacion}.`}
           {resultado.tiempoRespuestaMs != null &&
             ` Respuesta en ${resultado.tiempoRespuestaMs} ms.`}
         </p>
+        {emiteHdi && (
+          <button
+            type="button"
+            onClick={() => setEmitiendo(true)}
+            className="mt-3 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+          >
+            Emitir y pagar con HDI
+          </button>
+        )}
       </div>
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -502,13 +538,15 @@ function Detalle({ resultado }: { resultado: CotizacionResultado }) {
               <div className="flex items-center justify-between gap-2">
                 <span
                   className={
-                    c.incluida ? "text-slate-700" : "text-slate-400 line-through"
+                    c.incluida
+                      ? "text-slate-700"
+                      : "text-slate-400 line-through"
                   }
                 >
                   {c.nombre}
                 </span>
                 <span className="shrink-0 text-slate-500">
-                  {c.incluida ? c.sumaAsegurada ?? "Incluida" : "No incluida"}
+                  {c.incluida ? (c.sumaAsegurada ?? "Incluida") : "No incluida"}
                 </span>
               </div>
               {c.incluida && c.deducible && c.deducible !== "N/A" && (

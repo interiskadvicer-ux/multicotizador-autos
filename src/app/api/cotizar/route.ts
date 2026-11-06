@@ -8,6 +8,7 @@ import { requireApiSesion } from "@/lib/api-auth";
 import { registrarActividad } from "@/lib/activity";
 
 const PAQUETES_VALIDOS = new Set(["AMPLIA", "LIMITADA", "RC"]);
+const TIPOS_CARGA = new Set(["VACIO", "A", "B"]);
 
 const LIMITES_COBERTURAS: Record<
   keyof CoberturasPersonalizadas,
@@ -54,6 +55,12 @@ function esRequestValido(body: unknown): body is CotizacionRequest {
   const v = b.vehiculo as Record<string, unknown> | undefined;
   const c = b.conductor as Record<string, unknown> | undefined;
   if (!v || !c) return false;
+  if (
+    v.tipoCarga !== undefined &&
+    !(typeof v.tipoCarga === "string" && TIPOS_CARGA.has(v.tipoCarga))
+  ) {
+    return false;
+  }
   return (
     typeof v.marca === "string" &&
     typeof v.modelo === "string" &&
