@@ -4,6 +4,7 @@ import {
   ESTADOS_COTIZACION,
   actualizarCotizacion,
   cambiarEstadoCotizacion,
+  emitirCotizacion,
   obtenerCotizacion,
   type EstadoCotizacion,
 } from "@/lib/cotizaciones";
@@ -51,6 +52,28 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: "Captura el número de póliza." }, { status: 422 });
     }
     const notas = String(body.notasAdmin ?? "").trim() || null;
+    if (estado === "EMITIDA") {
+      if (cot.estado === "CANCELADA") {
+        return NextResponse.json({ error: "La cotización está cancelada." }, { status: 409 });
+      }
+      if (!cot.aseguradora || cot.primaTotal == null) {
+        return NextResponse.json(
+          { error: "La cotización no tiene una opción elegida." },
+          { status: 422 },
+        );
+      }
+      const vigenciaInicio = String(body.vigenciaInicio ?? "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vigenciaInicio) || isNaN(Date.parse(vigenciaInicio))) {
+        return NextResponse.json({ error: "Captura el inicio de vigencia." }, { status: 422 });
+      }
+      const polizaId = emitirCotizacion(cot, numeroPoliza!, vigenciaInicio, notas, sesion.id);
+      registrarActividad(
+        sesion,
+        "COTIZACION_EMITIDA",
+        `Cotización #${cot.id} → póliza ${numeroPoliza} (registro #${polizaId})`,
+      );
+      return NextResponse.json({ cotizacion: obtenerCotizacion(cot.id) });
+    }
     cambiarEstadoCotizacion(cot.id, estado, numeroPoliza, notas);
     registrarActividad(sesion, "COTIZACION_ESTADO", `Cotización #${cot.id} → ${estado}`);
     return NextResponse.json({ cotizacion: obtenerCotizacion(cot.id) });

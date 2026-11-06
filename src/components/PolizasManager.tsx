@@ -8,6 +8,9 @@ import { formatMXN } from "@/lib/format";
 type PolizaConEstado = Poliza & {
   estado: EstadoVigencia;
   diasParaVencer: number;
+  pagado: number;
+  saldo: number;
+  estadoPago: "PENDIENTE" | "PARCIAL" | "PAGADA";
 };
 
 const ESTADO_META: Record<
@@ -56,6 +59,12 @@ interface Props {
   // Agentes: solo consultan sus pólizas, sin alta/edición.
   soloLectura?: boolean;
 }
+
+const PAGO_META: Record<PolizaConEstado["estadoPago"], { label: string; cls: string }> = {
+  PENDIENTE: { label: "Pendiente", cls: "bg-amber-50 text-amber-700" },
+  PARCIAL: { label: "Parcial", cls: "bg-sky-50 text-sky-700" },
+  PAGADA: { label: "Pagada", cls: "bg-emerald-50 text-emerald-700" },
+};
 
 export default function PolizasManager({ soloLectura = false }: Props) {
   const [agentes, setAgentes] = useState<{ id: number; nombre: string }[]>([]);
@@ -391,6 +400,7 @@ export default function PolizasManager({ soloLectura = false }: Props) {
               <th className="px-4 py-3 text-right">Prima total</th>
               <th className="px-4 py-3">Vigencia</th>
               <th className="px-4 py-3">Estado</th>
+              <th className="px-4 py-3">Pago</th>
               {!soloLectura && <th className="px-4 py-3">Agente</th>}
               {!soloLectura && <th className="px-4 py-3"></th>}
             </tr>
@@ -398,13 +408,13 @@ export default function PolizasManager({ soloLectura = false }: Props) {
           <tbody className="divide-y divide-slate-100">
             {cargando ? (
               <tr>
-                <td colSpan={soloLectura ? 8 : 10} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 9 : 11} className="px-4 py-8 text-center text-slate-400">
                   Cargando…
                 </td>
               </tr>
             ) : visibles.length === 0 ? (
               <tr>
-                <td colSpan={soloLectura ? 8 : 10} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 9 : 11} className="px-4 py-8 text-center text-slate-400">
                   {filtro === "VENCIMIENTOS"
                     ? "No hay pólizas próximas a vencer."
                     : "Aún no hay pólizas registradas."}
@@ -440,6 +450,14 @@ export default function PolizasManager({ soloLectura = false }: Props) {
                         {p.estado !== "VENCIDA" && p.estado !== "VIGENTE"
                           ? ` · ${p.diasParaVencer}d`
                           : ""}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${PAGO_META[p.estadoPago].cls}`}
+                        title={`Pagado ${formatMXN(p.pagado)} · saldo ${formatMXN(p.saldo)}`}
+                      >
+                        {PAGO_META[p.estadoPago].label}
                       </span>
                     </td>
                     {!soloLectura && (

@@ -4,6 +4,7 @@ import { getSesion, tieneAcceso } from "@/lib/auth";
 import { listarPolizasConEstado } from "@/lib/polizas";
 import { contarCotizacionesPorEstado, listarCotizaciones } from "@/lib/cotizaciones";
 import { contarSolicitudesPendientes } from "@/lib/agentes";
+import { totalCobrado } from "@/lib/pagos";
 import { formatMXN } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,12 @@ export default async function DashboardPage() {
   const proximas = polizas.filter((p) => p.estado === "PROXIMA");
   const vencidas = polizas.filter((p) => p.estado === "VENCIDA");
   const primaVigente = vigentes.reduce((s, p) => s + p.primaNeta, 0);
+  const porCobrar = polizas.filter((p) => p.estadoPago !== "PAGADA");
+  const ahora = new Date();
+  const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toLocaleDateString("en-CA");
+  const cobradoMes = vePolizas
+    ? totalCobrado(inicioMes, sesion.rol === "AGENTE" ? sesion.id : undefined)
+    : 0;
 
   const usuarioFiltro = esAdmin ? undefined : sesion.id;
   const conteo = contarCotizacionesPorEstado(usuarioFiltro);
@@ -95,6 +102,15 @@ export default async function DashboardPage() {
               tono="amber"
             />
             <Kpi titulo="Pólizas vencidas" valor={String(vencidas.length)} href="/polizas" tono="red" />
+            <Kpi
+              titulo="Prima cobrada este mes"
+              valor={formatMXN(cobradoMes)}
+              detalle={`${porCobrar.length} pólizas por cobrar · ${formatMXN(
+                porCobrar.reduce((s, p) => s + p.saldo, 0),
+              )}`}
+              href={sesion.rol === "AGENTE" ? "/polizas" : "/cobranza"}
+              tono="emerald"
+            />
           </>
         )}
         <Kpi

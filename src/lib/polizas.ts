@@ -13,6 +13,7 @@ interface PolicyRow {
   vigencia_fin: string;
   notas: string | null;
   agente_id: number | null;
+  pagado: number | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -31,11 +32,16 @@ function mapPoliza(row: PolicyRow): Poliza {
     vigenciaFin: row.vigencia_fin,
     notas: row.notas ?? undefined,
     agenteId: row.agente_id,
+    pagado: row.pagado ?? 0,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
+
+const SELECT_POLIZAS = `SELECT p.*,
+  (SELECT COALESCE(SUM(monto), 0) FROM policy_payments WHERE poliza_id = p.id) AS pagado
+  FROM policies p`;
 
 // `agenteId` limita el listado a las pólizas de ese agente.
 export function listarPolizas(agenteId?: number): Poliza[] {
@@ -43,16 +49,16 @@ export function listarPolizas(agenteId?: number): Poliza[] {
     agenteId
       ? db
           .prepare(
-            "SELECT * FROM policies WHERE agente_id = ? ORDER BY vigencia_fin ASC",
+            `${SELECT_POLIZAS} WHERE p.agente_id = ? ORDER BY p.vigencia_fin ASC`,
           )
           .all(agenteId)
-      : db.prepare("SELECT * FROM policies ORDER BY vigencia_fin ASC").all()
+      : db.prepare(`${SELECT_POLIZAS} ORDER BY p.vigencia_fin ASC`).all()
   ) as PolicyRow[];
   return rows.map(mapPoliza);
 }
 
 export function obtenerPoliza(id: number): Poliza | null {
-  const row = db.prepare("SELECT * FROM policies WHERE id = ?").get(id) as
+  const row = db.prepare(`${SELECT_POLIZAS} WHERE p.id = ?`).get(id) as
     | PolicyRow
     | undefined;
   return row ? mapPoliza(row) : null;
@@ -117,9 +123,22 @@ export function eliminarPoliza(id: number): boolean {
 
 export type EstadoVigencia = "VIGENTE" | "POR_VENCER" | "PROXIMA" | "VENCIDA";
 
+export type EstadoPago = "PENDIENTE" | "PARCIAL" | "PAGADA";
+
 export interface PolizaConEstado extends Poliza {
   estado: EstadoVigencia;
   diasParaVencer: number;
+  pagado: number;
+  saldo: number;
+  estadoPago: EstadoPago;
+}
+
+// Tolerancia de redondeo entre lo cobrado y la prima total.
+const TOLERANCIA_PAGO = 1;
+
+export function estadoPago(primaTotal: number, pagado: number): EstadoPago {
+  if (pagado <= 0) return "PENDIENTE";
+  return pagado + TOLERANCIA_PAGO >= primaTotal ? "PAGADA" : "PARCIAL";
 }
 
 // Clasifica la póliza según los días que faltan para su vencimiento.
@@ -146,10 +165,16 @@ export function estadoVigencia(
 }
 
 export function listarPolizasConEstado(agenteId?: number): PolizaConEstado[] {
-  return listarPolizas(agenteId).map((p) => ({
-    ...p,
-    ...estadoVigencia(p.vigenciaFin),
-  }));
+  return listarPolizas(agenteId).map((p) => {
+    const pagado = p.pagado ?? 0;
+    return {
+      ...p,
+      ...estadoVigencia(p.vigenciaFin),
+      pagado,
+      saldo: Math.max(0, Math.round((p.primaTotal - pagado) * 100) / 100),
+      estadoPago: estadoPago(p.primaTotal, pagado),
+    };
+  });
 }
 
 // Pólizas que requieren aviso de renovación (vencidas o dentro de 60 días).

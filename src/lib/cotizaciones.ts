@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { crearPoliza, obtenerPoliza } from "@/lib/polizas";
 import type { CotizacionRequest, CotizacionResultado, Paquete } from "@/domain/types";
 
 export type EstadoCotizacion =
@@ -55,6 +56,8 @@ export interface CotizacionGuardada {
   aseguradora: string | null;
   paquete: string | null;
   numeroPoliza: string | null;
+  // Póliza creada en el control de pólizas al marcarla como emitida.
+  polizaId: number | null;
   notasAdmin: string | null;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +81,7 @@ interface QuoteRow {
   aseguradora: string | null;
   paquete: string | null;
   numero_poliza: string | null;
+  poliza_id: number | null;
   notas_admin: string | null;
   created_at: string;
   updated_at: string;
@@ -107,6 +111,7 @@ function mapResumen(row: QuoteRow): ResumenCotizacion {
     aseguradora: row.aseguradora,
     paquete: row.paquete,
     numeroPoliza: row.numero_poliza,
+    polizaId: row.poliza_id ?? null,
     notasAdmin: row.notas_admin,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -243,4 +248,62 @@ export function contarCotizacionesPorEstado(
   };
   for (const r of rows) base[r.estado] = r.c;
   return base;
+}
+
+function sumarUnAnio(iso: string): string {
+  const [a, m, d] = iso.split("-").map(Number);
+  const fin = new Date(Date.UTC(a + 1, m - 1, d));
+  return fin.toISOString().slice(0, 10);
+}
+
+// Marca la cotización como emitida y la registra en el control de pólizas
+// (asignada al agente dueño de la cotización). Si ya tenía póliza ligada, no
+// la duplica.
+export function emitirCotizacion(
+  cot: CotizacionGuardada,
+  numeroPoliza: string,
+  vigenciaInicio: string,
+  notasAdmin: string | null,
+  adminId: number,
+): number {
+  const elegido = cot.seleccion
+    ? cot.resultados.find(
+        (r) =>
+          r.aseguradoraId === cot.seleccion!.aseguradoraId &&
+          r.paquete === cot.seleccion!.paquete &&
+          r.status === "success",
+      )
+    : undefined;
+  const dueno = db.prepare("SELECT rol FROM users WHERE id = ?").get(cot.usuarioId) as
+    | { rol: string }
+    | undefined;
+  const serie = cot.detalleVehiculo?.serie ? ` · Serie ${cot.detalleVehiculo.serie}` : "";
+
+  return db.transaction(() => {
+    let polizaId = cot.polizaId && obtenerPoliza(cot.polizaId) ? cot.polizaId : null;
+    if (!polizaId) {
+      polizaId = crearPoliza(
+        {
+          numeroPoliza,
+          ramo: "Autos",
+          aseguradora: cot.aseguradora ?? elegido?.aseguradora ?? "",
+          asegurado: cot.contratante?.nombre || cot.cliente || "Sin nombre",
+          primaNeta: elegido?.prima?.primaNeta ?? cot.primaTotal ?? 0,
+          primaTotal: cot.primaTotal ?? elegido?.prima?.primaTotal ?? 0,
+          vigenciaInicio,
+          vigenciaFin: sumarUnAnio(vigenciaInicio),
+          notas: `Emitida desde cotización #${cot.id} · ${cot.vehiculo}${serie}${
+            cot.paquete ? ` · ${cot.paquete}` : ""
+          }`,
+          agenteId: dueno?.rol === "AGENTE" ? cot.usuarioId : null,
+        },
+        adminId,
+      ).id;
+    }
+    db.prepare(
+      `UPDATE quotes SET estado = 'EMITIDA', numero_poliza = ?, notas_admin = ?, poliza_id = ?,
+         updated_at = datetime('now') WHERE id = ?`,
+    ).run(numeroPoliza, notasAdmin, polizaId, cot.id);
+    return polizaId;
+  })();
 }

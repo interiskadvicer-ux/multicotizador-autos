@@ -19,7 +19,8 @@ function crearConexion(): Database.Database {
   database.pragma("busy_timeout = 10000");
   database.pragma("journal_mode = WAL");
   database.pragma("foreign_keys = ON");
-  inicializarEsquema(database);
+  // Inmediata para que las migraciones no compitan entre procesos.
+  database.transaction(() => inicializarEsquema(database)).immediate();
   return database;
 }
 
@@ -114,7 +115,37 @@ function inicializarEsquema(database: Database.Database): void {
       FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS insurer_statements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aseguradora TEXT NOT NULL DEFAULT '',
+      nombre_original TEXT NOT NULL,
+      archivo TEXT NOT NULL,
+      tamano INTEGER NOT NULL,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS policy_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poliza_id INTEGER NOT NULL,
+      fecha_pago TEXT NOT NULL,
+      monto REAL NOT NULL,
+      referencia TEXT,
+      origen TEXT NOT NULL DEFAULT 'MANUAL',
+      statement_id INTEGER,
+      notas TEXT,
+      created_by INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (poliza_id) REFERENCES policies(id) ON DELETE CASCADE,
+      FOREIGN KEY (statement_id) REFERENCES insurer_statements(id) ON DELETE SET NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_policies_vigencia_fin ON policies(vigencia_fin);
+    CREATE INDEX IF NOT EXISTS idx_payments_poliza ON policy_payments(poliza_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_statement
+      ON policy_payments(poliza_id, statement_id) WHERE statement_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_quotes_usuario ON quotes(usuario_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_applications_email ON agent_applications(email);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
@@ -126,6 +157,14 @@ function inicializarEsquema(database: Database.Database): void {
   if (!columnasPolizas.some((c) => c.name === "agente_id")) {
     database.exec(
       "ALTER TABLE policies ADD COLUMN agente_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+    );
+  }
+  const columnasCotizaciones = database
+    .prepare("PRAGMA table_info(quotes)")
+    .all() as { name: string }[];
+  if (!columnasCotizaciones.some((c) => c.name === "poliza_id")) {
+    database.exec(
+      "ALTER TABLE quotes ADD COLUMN poliza_id INTEGER REFERENCES policies(id) ON DELETE SET NULL",
     );
   }
 }

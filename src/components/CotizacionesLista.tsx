@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import type { EstadoCotizacion, ResumenCotizacion } from "@/lib/cotizaciones";
 import { formatMXN } from "@/lib/format";
@@ -18,6 +18,12 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [emision, setEmision] = useState<{
+    id: number;
+    numeroPoliza: string;
+    vigenciaInicio: string;
+  } | null>(null);
+  const [emitiendo, setEmitiendo] = useState(false);
 
   async function cargar() {
     setCargando(true);
@@ -37,23 +43,43 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
     cargar();
   }, []);
 
-  async function cambiarEstado(c: ResumenCotizacion, estado: EstadoCotizacion) {
-    let numeroPoliza: string | null = c.numeroPoliza;
-    if (estado === "EMITIDA") {
-      numeroPoliza = window.prompt("Número de póliza emitida:", c.numeroPoliza ?? "");
-      if (!numeroPoliza?.trim()) return;
-    } else if (!window.confirm(`¿Cancelar la cotización #${c.id}?`)) {
-      return;
-    }
+  async function cancelar(c: ResumenCotizacion) {
+    if (!window.confirm(`¿Cancelar la cotización #${c.id}?`)) return;
     setError(null);
     const res = await fetch(`/api/cotizaciones/${c.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ soloEstado: true, estado, numeroPoliza, notasAdmin: c.notasAdmin }),
+      body: JSON.stringify({ soloEstado: true, estado: "CANCELADA", notasAdmin: c.notasAdmin }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) setError(data.error ?? "No se pudo actualizar.");
     else cargar();
+  }
+
+  async function emitir(e: React.FormEvent, c: ResumenCotizacion) {
+    e.preventDefault();
+    if (!emision) return;
+    setEmitiendo(true);
+    setError(null);
+    const res = await fetch(`/api/cotizaciones/${c.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        soloEstado: true,
+        estado: "EMITIDA",
+        numeroPoliza: emision.numeroPoliza,
+        vigenciaInicio: emision.vigenciaInicio,
+        notasAdmin: c.notasAdmin,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setEmitiendo(false);
+    if (!res.ok) {
+      setError(data.error ?? "No se pudo registrar la emisión.");
+      return;
+    }
+    setEmision(null);
+    cargar();
   }
 
   const q = busqueda.trim().toLowerCase();
@@ -137,7 +163,8 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
               visibles.map((c) => {
                 const meta = ESTADO_META[c.estado];
                 return (
-                  <tr key={c.id} className="hover:bg-slate-50">
+                  <Fragment key={c.id}>
+                  <tr className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">{c.id}</td>
                     <td className="px-4 py-3 text-slate-600">{c.updatedAt.slice(0, 10)}</td>
                     {esAdmin && <td className="px-4 py-3 text-slate-600">{c.usuarioNombre}</td>}
@@ -154,7 +181,16 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                         {meta.label}
                       </span>
                       {c.numeroPoliza && (
-                        <span className="ml-1 text-xs text-slate-500">Póliza {c.numeroPoliza}</span>
+                        <span className="ml-1 text-xs text-slate-500">
+                          Póliza{" "}
+                          {c.polizaId && esAdmin ? (
+                            <Link href="/polizas" className="text-sky-700 hover:underline">
+                              {c.numeroPoliza}
+                            </Link>
+                          ) : (
+                            c.numeroPoliza
+                          )}
+                        </span>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
@@ -164,7 +200,13 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                       {esAdmin && c.estado === "EMISION_SOLICITADA" && (
                         <button
                           type="button"
-                          onClick={() => cambiarEstado(c, "EMITIDA")}
+                          onClick={() =>
+                            setEmision({
+                              id: c.id,
+                              numeroPoliza: c.numeroPoliza ?? "",
+                              vigenciaInicio: new Date().toLocaleDateString("en-CA"),
+                            })
+                          }
                           className="ml-3 text-xs font-medium text-emerald-700 hover:underline"
                         >
                           Marcar emitida
@@ -173,7 +215,7 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                       {esAdmin && c.estado !== "EMITIDA" && c.estado !== "CANCELADA" && (
                         <button
                           type="button"
-                          onClick={() => cambiarEstado(c, "CANCELADA")}
+                          onClick={() => cancelar(c)}
                           className="ml-3 text-xs font-medium text-red-600 hover:underline"
                         >
                           Cancelar
@@ -181,6 +223,51 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                       )}
                     </td>
                   </tr>
+                  {emision?.id === c.id && (
+                    <tr className="bg-emerald-50/50">
+                      <td colSpan={9} className="px-4 py-3">
+                        <form onSubmit={(e) => emitir(e, c)} className="flex flex-wrap items-end gap-3">
+                          <label className="text-xs text-slate-600">
+                            Número de póliza
+                            <input
+                              required
+                              value={emision.numeroPoliza}
+                              onChange={(e) => setEmision({ ...emision, numeroPoliza: e.target.value })}
+                              className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+                            />
+                          </label>
+                          <label className="text-xs text-slate-600">
+                            Inicio de vigencia
+                            <input
+                              type="date"
+                              required
+                              value={emision.vigenciaInicio}
+                              onChange={(e) => setEmision({ ...emision, vigenciaInicio: e.target.value })}
+                              className="mt-1 block rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+                            />
+                          </label>
+                          <span className="text-xs text-slate-500">
+                            Se registra en Pólizas por 1 año{c.usuarioNombre ? `, asignada a ${c.usuarioNombre}` : ""}.
+                          </span>
+                          <button
+                            type="submit"
+                            disabled={emitiendo}
+                            className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            {emitiendo ? "Registrando…" : "Confirmar emisión"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmision(null)}
+                            className="text-sm text-slate-500 hover:underline"
+                          >
+                            Cancelar
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })
             )}

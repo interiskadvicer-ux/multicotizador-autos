@@ -29,6 +29,7 @@ const SECCIONES: {
     links: [
       { href: "/cotizaciones", label: "Cotizaciones", roles: TODOS },
       { href: "/polizas", label: "Pólizas", roles: ["ADMIN", "POLIZAS", "AGENTE"] },
+      { href: "/cobranza", label: "Cobranza", roles: ["ADMIN", "POLIZAS"] },
     ],
   },
   {

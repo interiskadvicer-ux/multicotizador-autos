@@ -56,6 +56,8 @@ export interface Poliza {
   notas?: string;
   // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
   agenteId?: number | null;
+  // Suma de pagos registrados (manuales o por estado de cuenta).
+  pagado?: number;
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;
@@ -63,7 +65,7 @@ export interface Poliza {
 
 export type PolizaInput = Omit<
   Poliza,
-  "id" | "createdBy" | "createdAt" | "updatedAt"
+  "id" | "createdBy" | "createdAt" | "updatedAt" | "pagado"
 >;
 
 // Ramos comunes del mercado mexicano (el usuario puede escribir uno libre).
