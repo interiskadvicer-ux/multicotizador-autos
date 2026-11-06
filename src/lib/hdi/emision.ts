@@ -292,6 +292,54 @@ function leerPago(xml: string): PagoHdi | undefined {
   };
 }
 
+// Cotiza con coberturas declaradas y guarda la cotización en HDI, sin emitir.
+export async function guardarCotizacionHdi(
+  request: CotizacionRequest,
+  descuento: number,
+  claveHdi: string,
+) {
+  const cfg = getHdiConfig();
+  const { solicitud, paquete } = await prepararCotizacionHdi(
+    request,
+    descuento,
+    claveHdi,
+  );
+  const ajuste = paquete.porcentajeAjuste || descuento;
+  const paqueteXml = xmlPaqueteConCambios(
+    paquete,
+    solicitud,
+    ajuste,
+    cfg.tipoAjusteDescuento,
+  )
+    .replace("<pub:PaquetesCoberturas>", "<pub:PaqueteCoberturas>")
+    .replace("</pub:PaquetesCoberturas>", "</pub:PaqueteCoberturas>")
+    .replace(
+      `<pub:Clave>${paquete.clave}</pub:Clave>`,
+      `<pub:Clave>${paquete.clave}</pub:Clave>${xmlCampos([["Descripcion", paquete.descripcion]])}`,
+    );
+
+  const guardado = await llamarHdi(
+    "GuardarCotizacion",
+    "<pub:GuardarCotizacionRequest><pub:datosCotizacion>" +
+      paqueteXml +
+      `<pub:CaracteristicasVehiculo>${xmlVehiculoHdi(solicitud)}</pub:CaracteristicasVehiculo>` +
+      xmlCampos([
+        ["fechaInicioVigencia", solicitud.inicio],
+        ["idFormaPago", solicitud.idFormaPago],
+        ["IDTipoSumaAsegurada", cfg.tipoSumaAsegurada],
+        ["SumaAsegurada", 0],
+        ["porcentajeIva", 0],
+      ]) +
+      "</pub:datosCotizacion>" +
+      xmlCampos([["usuario", cfg.usuario]]) +
+      "</pub:GuardarCotizacionRequest>",
+  );
+  const cotizacion = valor(guardado, "idCotizacion");
+  if (!cotizacion)
+    throw new HdiError("HDI no devolvió el número de cotización.");
+  return { cotizacion, solicitud, paquete, ajuste };
+}
+
 export async function emitirHdi(
   request: CotizacionRequest,
   descuento: number,
@@ -302,44 +350,8 @@ export async function emitirHdi(
   const cfg = getHdiConfig();
   const agencia = cfg.agencia.padStart(5, "0");
   try {
-    const { solicitud, paquete } = await prepararCotizacionHdi(
-      request,
-      descuento,
-      claveHdi,
-    );
-    const ajuste = paquete.porcentajeAjuste || descuento;
-    const paqueteXml = xmlPaqueteConCambios(
-      paquete,
-      solicitud,
-      ajuste,
-      cfg.tipoAjusteDescuento,
-    )
-      .replace("<pub:PaquetesCoberturas>", "<pub:PaqueteCoberturas>")
-      .replace("</pub:PaquetesCoberturas>", "</pub:PaqueteCoberturas>")
-      .replace(
-        `<pub:Clave>${paquete.clave}</pub:Clave>`,
-        `<pub:Clave>${paquete.clave}</pub:Clave>${xmlCampos([["Descripcion", paquete.descripcion]])}`,
-      );
-
-    const guardado = await llamarHdi(
-      "GuardarCotizacion",
-      "<pub:GuardarCotizacionRequest><pub:datosCotizacion>" +
-        paqueteXml +
-        `<pub:CaracteristicasVehiculo>${xmlVehiculoHdi(solicitud)}</pub:CaracteristicasVehiculo>` +
-        xmlCampos([
-          ["fechaInicioVigencia", solicitud.inicio],
-          ["idFormaPago", solicitud.idFormaPago],
-          ["IDTipoSumaAsegurada", cfg.tipoSumaAsegurada],
-          ["SumaAsegurada", 0],
-          ["porcentajeIva", 0],
-        ]) +
-        "</pub:datosCotizacion>" +
-        xmlCampos([["usuario", cfg.usuario]]) +
-        "</pub:GuardarCotizacionRequest>",
-    );
-    const cotizacion = valor(guardado, "idCotizacion");
-    if (!cotizacion)
-      throw new HdiError("HDI no devolvió el número de cotización.");
+    const { cotizacion, solicitud, paquete, ajuste } =
+      await guardarCotizacionHdi(request, descuento, claveHdi);
 
     const ubicacion = await ubicacionHdi(e.contratante.cp);
     const emitida = await llamarHdi(
