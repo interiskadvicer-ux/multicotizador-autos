@@ -31,6 +31,7 @@ interface FormState {
   vigenciaInicio: string;
   vigenciaFin: string;
   notas: string;
+  agenteId: string;
 }
 
 const FORM_VACIO: FormState = {
@@ -44,13 +45,20 @@ const FORM_VACIO: FormState = {
   vigenciaInicio: "",
   vigenciaFin: "",
   notas: "",
+  agenteId: "",
 };
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200";
 const labelCls = "mb-1 block text-xs font-medium text-slate-600";
 
-export default function PolizasManager() {
+interface Props {
+  // Agentes: solo consultan sus pólizas, sin alta/edición.
+  soloLectura?: boolean;
+}
+
+export default function PolizasManager({ soloLectura = false }: Props) {
+  const [agentes, setAgentes] = useState<{ id: number; nombre: string }[]>([]);
   const [polizas, setPolizas] = useState<PolizaConEstado[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +83,16 @@ export default function PolizasManager() {
 
   useEffect(() => {
     cargar();
-  }, []);
+    if (!soloLectura) {
+      fetch("/api/agentes")
+        .then((r) => (r.ok ? r.json() : { agentes: [] }))
+        .then((d) => setAgentes(d.agentes ?? []))
+        .catch(() => setAgentes([]));
+    }
+  }, [soloLectura]);
+
+  const nombreAgente = (id?: number | null) =>
+    agentes.find((a) => a.id === id)?.nombre ?? "—";
 
   const vencimientos = useMemo(
     () => polizas.filter((p) => p.estado !== "VIGENTE"),
@@ -100,6 +117,7 @@ export default function PolizasManager() {
       vigenciaInicio: p.vigenciaInicio,
       vigenciaFin: p.vigenciaFin,
       notas: p.notas ?? "",
+      agenteId: p.agenteId ? String(p.agenteId) : "",
     });
   }
 
@@ -118,6 +136,7 @@ export default function PolizasManager() {
       vigenciaInicio: form.vigenciaInicio,
       vigenciaFin: form.vigenciaFin,
       notas: form.notas || undefined,
+      agenteId: form.agenteId ? Number(form.agenteId) : null,
     };
     try {
       const res = await fetch(
@@ -188,6 +207,7 @@ export default function PolizasManager() {
           >
             Descargar Excel
           </a>
+          {!soloLectura && (
           <button
             type="button"
             onClick={abrirNueva}
@@ -195,6 +215,7 @@ export default function PolizasManager() {
           >
             + Nueva póliza
           </button>
+          )}
         </div>
       </div>
 
@@ -213,6 +234,21 @@ export default function PolizasManager() {
             {form.id ? "Editar póliza" : "Nueva póliza"}
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className={labelCls}>Agente</label>
+              <select
+                className={inputCls}
+                value={form.agenteId}
+                onChange={(e) => setForm({ ...form, agenteId: e.target.value })}
+              >
+                <option value="">Sin agente (cartera propia)</option>
+                {agentes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelCls}>No. de póliza</label>
               <input
@@ -355,19 +391,20 @@ export default function PolizasManager() {
               <th className="px-4 py-3 text-right">Prima total</th>
               <th className="px-4 py-3">Vigencia</th>
               <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3"></th>
+              {!soloLectura && <th className="px-4 py-3">Agente</th>}
+              {!soloLectura && <th className="px-4 py-3"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {cargando ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 8 : 10} className="px-4 py-8 text-center text-slate-400">
                   Cargando…
                 </td>
               </tr>
             ) : visibles.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 8 : 10} className="px-4 py-8 text-center text-slate-400">
                   {filtro === "VENCIMIENTOS"
                     ? "No hay pólizas próximas a vencer."
                     : "Aún no hay pólizas registradas."}
@@ -405,6 +442,12 @@ export default function PolizasManager() {
                           : ""}
                       </span>
                     </td>
+                    {!soloLectura && (
+                      <td className="px-4 py-3 text-slate-600">
+                        {nombreAgente(p.agenteId)}
+                      </td>
+                    )}
+                    {!soloLectura && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
                         type="button"
@@ -421,6 +464,7 @@ export default function PolizasManager() {
                         Eliminar
                       </button>
                     </td>
+                    )}
                   </tr>
                 );
               })

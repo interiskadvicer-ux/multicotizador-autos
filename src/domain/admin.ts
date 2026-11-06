@@ -1,6 +1,6 @@
 // Tipos de dominio para autenticación, pólizas y auditoría.
 
-export type Rol = "ADMIN" | "POLIZAS" | "COTIZADOR";
+export type Rol = "ADMIN" | "POLIZAS" | "COTIZADOR" | "AGENTE";
 
 export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
   {
@@ -17,6 +17,12 @@ export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
     value: "COTIZADOR",
     label: "Cotizador",
     descripcion: "Solo puede generar cotizaciones.",
+  },
+  {
+    value: "AGENTE",
+    label: "Agente",
+    descripcion:
+      "Agente externo autorizado: cotiza y ve solo sus cotizaciones y pólizas.",
   },
 ];
 
@@ -48,6 +54,8 @@ export interface Poliza {
   vigenciaInicio: string; // ISO yyyy-mm-dd
   vigenciaFin: string; // ISO yyyy-mm-dd
   notas?: string;
+  // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
+  agenteId?: number | null;
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;

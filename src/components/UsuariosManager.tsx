@@ -11,6 +11,7 @@ const ETIQUETA_ROL: Record<Rol, string> = {
   ADMIN: "Administrador",
   POLIZAS: "Gestor de pólizas",
   COTIZADOR: "Cotizador",
+  AGENTE: "Agente",
 };
 
 interface NuevoState {

@@ -15,6 +15,8 @@ function crearConexion(): Database.Database {
   fs.mkdirSync(path.dirname(ruta), { recursive: true });
 
   const database = new Database(ruta);
+  // El build de Next abre la base en varios procesos a la vez.
+  database.pragma("busy_timeout = 10000");
   database.pragma("journal_mode = WAL");
   database.pragma("foreign_keys = ON");
   inicializarEsquema(database);
@@ -60,9 +62,84 @@ function inicializarEsquema(database: Database.Database): void {
       FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS agent_applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT NOT NULL,
+      email TEXT NOT NULL,
+      telefono TEXT NOT NULL,
+      rfc TEXT NOT NULL,
+      estado_republica TEXT NOT NULL DEFAULT '',
+      cedula TEXT,
+      password_hash TEXT NOT NULL,
+      estado TEXT NOT NULL DEFAULT 'PENDIENTE',
+      motivo_rechazo TEXT,
+      usuario_id INTEGER,
+      revisado_por INTEGER,
+      revisado_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (revisado_por) REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      application_id INTEGER NOT NULL,
+      tipo TEXT NOT NULL,
+      nombre_original TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      tamano INTEGER NOT NULL,
+      archivo TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (application_id) REFERENCES agent_applications(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS quotes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id INTEGER NOT NULL,
+      estado TEXT NOT NULL DEFAULT 'GUARDADA',
+      cliente TEXT NOT NULL DEFAULT '',
+      vehiculo TEXT NOT NULL DEFAULT '',
+      request_json TEXT NOT NULL,
+      resultados_json TEXT NOT NULL,
+      seleccion_json TEXT,
+      contratante_json TEXT,
+      detalle_vehiculo_json TEXT,
+      prima_total REAL,
+      aseguradora TEXT,
+      paquete TEXT,
+      numero_poliza TEXT,
+      notas_admin TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_policies_vigencia_fin ON policies(vigencia_fin);
+    CREATE INDEX IF NOT EXISTS idx_quotes_usuario ON quotes(usuario_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_applications_email ON agent_applications(email);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
   `);
+
+  const columnasPolizas = database
+    .prepare("PRAGMA table_info(policies)")
+    .all() as { name: string }[];
+  if (!columnasPolizas.some((c) => c.name === "agente_id")) {
+    database.exec(
+      "ALTER TABLE policies ADD COLUMN agente_id INTEGER REFERENCES users(id) ON DELETE SET NULL",
+    );
+  }
+}
+
+// Carpeta para archivos subidos (documentos de agentes, plantillas de
+// contrato). Vive junto a la base de datos, fuera de `public/`.
+export function directorioArchivos(...partes: string[]): string {
+  const rutaConfig = process.env.DATABASE_PATH;
+  const base = rutaConfig
+    ? path.dirname(path.resolve(rutaConfig))
+    : path.join(process.cwd(), "data");
+  const dir = path.join(base, "uploads", ...partes);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
 // En desarrollo Next recarga módulos; reutilizamos una sola conexión global

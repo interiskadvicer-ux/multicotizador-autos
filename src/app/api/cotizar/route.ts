@@ -70,6 +70,7 @@ export async function POST(req: Request) {
     "ADMIN",
     "POLIZAS",
     "COTIZADOR",
+    "AGENTE",
   ]);
   if (error) return error;
 
@@ -89,6 +90,9 @@ export async function POST(req: Request) {
       { status: 422 },
     );
   }
+
+  // Los agentes cotizan siempre con el descuento estándar de cada aseguradora.
+  if (sesion.rol === "AGENTE") delete body.descuentos;
 
   const resultados = await cotizarPaquetes(body);
   const paquetes = body.paquetes?.length ? body.paquetes : [body.paquete];

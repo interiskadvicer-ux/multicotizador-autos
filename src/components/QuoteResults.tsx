@@ -24,6 +24,10 @@ interface Props {
   coberturas: CoberturasPersonalizadas;
   recotizandoTodo: boolean;
   onCoberturas: (coberturas: CoberturasPersonalizadas) => void;
+  // Si es false, el descuento se muestra fijo (agentes usan el estándar).
+  puedeDescontar?: boolean;
+  elegida?: Celda | null;
+  onElegir?: (celda: Celda) => void;
 }
 
 const COLUMNAS: { paquete: Paquete; label: string }[] = [
@@ -46,6 +50,9 @@ export default function QuoteResults({
   coberturas,
   recotizandoTodo,
   onCoberturas,
+  puedeDescontar = true,
+  elegida = null,
+  onElegir,
 }: Props) {
   const [detalle, setDetalle] = useState<Celda | null>(null);
 
@@ -138,6 +145,7 @@ export default function QuoteResults({
                   descuento={descuentos[a.id] ?? a.descuentoDefault}
                   ocupado={ocupado}
                   onRecotizar={(d) => onRecotizar(a.id, d)}
+                  puedeDescontar={puedeDescontar}
                   celdas={COLUMNAS.map((c) => {
                     const r = celda(a.id, c.paquete);
                     return {
@@ -158,7 +166,31 @@ export default function QuoteResults({
                   }
                   detalle={
                     abiertaEnFila && seleccionado ? (
-                      <Detalle resultado={seleccionado} />
+                      <div className="space-y-3">
+                        {onElegir && seleccionado.status === "success" && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-white p-3">
+                            <span className="text-sm text-slate-700">
+                              {elegida?.aseguradoraId === seleccionado.aseguradoraId &&
+                              elegida?.paquete === seleccionado.paquete
+                                ? "Esta es la opción elegida."
+                                : `¿Continuar con ${seleccionado.aseguradora} · ${seleccionado.paquete}?`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onElegir({
+                                  aseguradoraId: seleccionado.aseguradoraId,
+                                  paquete: seleccionado.paquete,
+                                })
+                              }
+                              className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-700"
+                            >
+                              Elegir esta opción y continuar
+                            </button>
+                          </div>
+                        )}
+                        <Detalle resultado={seleccionado} />
+                      </div>
                     ) : null
                   }
                 />
@@ -283,12 +315,14 @@ function FilaAseguradora({
   celdas,
   onCelda,
   detalle,
+  puedeDescontar,
 }: {
   id: string;
   nombre: string;
   descuento: number;
   ocupado: boolean;
   onRecotizar: (descuento: number) => void;
+  puedeDescontar: boolean;
   celdas: {
     paquete: Paquete;
     resultado?: CotizacionResultado;
@@ -331,6 +365,9 @@ function FilaAseguradora({
           )}
         </td>
         <td className="px-3 py-3">
+          {!puedeDescontar ? (
+            <span className="text-xs text-slate-500">Estándar</span>
+          ) : (
           <div className="relative w-24">
             <input
               className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 pr-6 text-sm text-slate-900 shadow-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
@@ -354,6 +391,7 @@ function FilaAseguradora({
               %
             </span>
           </div>
+          )}
           {ocupado && (
             <span className="mt-1 block text-[10px] text-slate-500">
               Recotizando…

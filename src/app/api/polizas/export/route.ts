@@ -8,13 +8,16 @@ const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 export async function GET(req: Request) {
-  const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS"]);
+  const { sesion, error } = await requireApiSesion(["ADMIN", "POLIZAS", "AGENTE"]);
   if (error) return error;
 
   const tipo = new URL(req.url).searchParams.get("tipo");
   const soloVencimientos = tipo === "vencimientos";
 
-  const datos = soloVencimientos ? vencimientos() : listarPolizasConEstado();
+  const agenteId = sesion.rol === "AGENTE" ? sesion.id : undefined;
+  const datos = soloVencimientos
+    ? vencimientos(agenteId)
+    : listarPolizasConEstado(agenteId);
   const titulo = soloVencimientos ? "Vencimientos" : "Pólizas";
   const buffer = await excelPolizas(datos, titulo);
   const nombre = nombreArchivo(

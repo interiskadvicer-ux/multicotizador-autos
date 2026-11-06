@@ -12,6 +12,7 @@ interface PolicyRow {
   vigencia_inicio: string;
   vigencia_fin: string;
   notas: string | null;
+  agente_id: number | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -29,16 +30,24 @@ function mapPoliza(row: PolicyRow): Poliza {
     vigenciaInicio: row.vigencia_inicio,
     vigenciaFin: row.vigencia_fin,
     notas: row.notas ?? undefined,
+    agenteId: row.agente_id,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-export function listarPolizas(): Poliza[] {
-  const rows = db
-    .prepare("SELECT * FROM policies ORDER BY vigencia_fin ASC")
-    .all() as PolicyRow[];
+// `agenteId` limita el listado a las pólizas de ese agente.
+export function listarPolizas(agenteId?: number): Poliza[] {
+  const rows = (
+    agenteId
+      ? db
+          .prepare(
+            "SELECT * FROM policies WHERE agente_id = ? ORDER BY vigencia_fin ASC",
+          )
+          .all(agenteId)
+      : db.prepare("SELECT * FROM policies ORDER BY vigencia_fin ASC").all()
+  ) as PolicyRow[];
   return rows.map(mapPoliza);
 }
 
@@ -54,8 +63,8 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
     .prepare(
       `INSERT INTO policies
         (numero_poliza, ramo, aseguradora, asegurado, prima_neta, prima_total,
-         vigencia_inicio, vigencia_fin, notas, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         vigencia_inicio, vigencia_fin, notas, agente_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.numeroPoliza.trim(),
@@ -67,6 +76,7 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
       input.vigenciaInicio,
       input.vigenciaFin,
       input.notas?.trim() || null,
+      input.agenteId ?? null,
       createdBy,
     );
   return obtenerPoliza(Number(info.lastInsertRowid))!;
@@ -82,7 +92,7 @@ export function actualizarPoliza(
     `UPDATE policies SET
        numero_poliza = ?, ramo = ?, aseguradora = ?, asegurado = ?,
        prima_neta = ?, prima_total = ?, vigencia_inicio = ?, vigencia_fin = ?,
-       notas = ?, updated_at = datetime('now')
+       notas = ?, agente_id = ?, updated_at = datetime('now')
      WHERE id = ?`,
   ).run(
     input.numeroPoliza.trim(),
@@ -94,6 +104,7 @@ export function actualizarPoliza(
     input.vigenciaInicio,
     input.vigenciaFin,
     input.notas?.trim() || null,
+    input.agenteId ?? null,
     id,
   );
   return obtenerPoliza(id);
@@ -134,16 +145,16 @@ export function estadoVigencia(
   return { estado, diasParaVencer: dias };
 }
 
-export function listarPolizasConEstado(): PolizaConEstado[] {
-  return listarPolizas().map((p) => ({
+export function listarPolizasConEstado(agenteId?: number): PolizaConEstado[] {
+  return listarPolizas(agenteId).map((p) => ({
     ...p,
     ...estadoVigencia(p.vigenciaFin),
   }));
 }
 
 // Pólizas que requieren aviso de renovación (vencidas o dentro de 60 días).
-export function vencimientos(): PolizaConEstado[] {
-  return listarPolizasConEstado()
+export function vencimientos(agenteId?: number): PolizaConEstado[] {
+  return listarPolizasConEstado(agenteId)
     .filter((p) => p.estado !== "VIGENTE")
     .sort((a, b) => a.diasParaVencer - b.diasParaVencer);
 }

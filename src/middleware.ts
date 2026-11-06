@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { COOKIE_SESION, verificarToken } from "@/lib/session";
 
 // Rutas de página públicas (no requieren sesión).
-const RUTAS_PUBLICAS = ["/login"];
+const RUTAS_PUBLICAS = ["/login", "/registro"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

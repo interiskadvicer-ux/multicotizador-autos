@@ -19,6 +19,12 @@ export function parsePolizaInput(
   const vigenciaFin = String(b.vigenciaFin ?? "").trim();
   const primaNeta = Number(b.primaNeta);
   const primaTotal = Number(b.primaTotal);
+  const agenteId =
+    b.agenteId === null || b.agenteId === undefined || b.agenteId === ""
+      ? null
+      : Number(b.agenteId);
+  if (agenteId !== null && !Number.isInteger(agenteId))
+    return { data: null, error: "El agente no es válido." };
   const notas =
     typeof b.notas === "string" && b.notas.trim() ? b.notas.trim() : undefined;
 
@@ -51,6 +57,7 @@ export function parsePolizaInput(
       vigenciaInicio,
       vigenciaFin,
       notas,
+      agenteId,
     },
     error: null,
   };

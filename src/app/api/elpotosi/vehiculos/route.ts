@@ -8,7 +8,7 @@ import {
 // Búsqueda en el catálogo vehicular de El Potosí para obtener la
 // claveElPotosi a partir de marca / submarca / año.
 export async function GET(req: Request) {
-  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR"]);
+  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"]);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);
