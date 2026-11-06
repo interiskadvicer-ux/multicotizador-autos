@@ -139,21 +139,29 @@ export function totalCobrado(desde: string, agenteId?: number): number {
   return row.t;
 }
 
+// Un mismo archivo (por SHA-256) se guarda una sola vez: si ya se había
+// cargado, regresa el registro existente para no duplicar sus pagos.
 export function guardarEstadoCuenta(
   aseguradora: string,
   nombreOriginal: string,
+  extension: "pdf" | "csv" | "xlsx",
   datos: Buffer,
   usuarioId: number,
-): number {
-  const archivo = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.pdf`;
+): { id: number; cargadoEl: string | null } {
+  const hash = crypto.createHash("sha256").update(datos).digest("hex");
+  const previo = db
+    .prepare("SELECT id, created_at FROM insurer_statements WHERE hash = ?")
+    .get(hash) as { id: number; created_at: string } | undefined;
+  if (previo) return { id: previo.id, cargadoEl: previo.created_at };
+  const archivo = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${extension}`;
   fs.writeFileSync(path.join(directorioArchivos("estados-cuenta"), archivo), datos);
   const info = db
     .prepare(
-      `INSERT INTO insurer_statements (aseguradora, nombre_original, archivo, tamano, created_by)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO insurer_statements (aseguradora, nombre_original, archivo, tamano, hash, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .run(aseguradora, nombreOriginal.slice(0, 200), archivo, datos.length, usuarioId);
-  return Number(info.lastInsertRowid);
+    .run(aseguradora, nombreOriginal.slice(0, 200), archivo, datos.length, hash, usuarioId);
+  return { id: Number(info.lastInsertRowid), cargadoEl: null };
 }
 
 export function listarEstadosCuenta(): EstadoCuenta[] {
@@ -185,14 +193,18 @@ export function listarEstadosCuenta(): EstadoCuenta[] {
 
 export function leerEstadoCuenta(
   id: number,
-): { nombreOriginal: string; datos: Buffer } | null {
+): { nombreOriginal: string; extension: string; datos: Buffer } | null {
   const row = db
     .prepare("SELECT nombre_original, archivo FROM insurer_statements WHERE id = ?")
     .get(id) as { nombre_original: string; archivo: string } | undefined;
   if (!row) return null;
   const ruta = path.join(directorioArchivos("estados-cuenta"), path.basename(row.archivo));
   if (!fs.existsSync(ruta)) return null;
-  return { nombreOriginal: row.nombre_original, datos: fs.readFileSync(ruta) };
+  return {
+    nombreOriginal: row.nombre_original,
+    extension: path.extname(ruta).slice(1),
+    datos: fs.readFileSync(ruta),
+  };
 }
 
 // Valida un pago capturado (manual o desde la conciliación).

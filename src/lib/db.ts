@@ -121,6 +121,7 @@ function inicializarEsquema(database: Database.Database): void {
       nombre_original TEXT NOT NULL,
       archivo TEXT NOT NULL,
       tamano INTEGER NOT NULL,
+      hash TEXT,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
@@ -167,6 +168,15 @@ function inicializarEsquema(database: Database.Database): void {
       "ALTER TABLE quotes ADD COLUMN poliza_id INTEGER REFERENCES policies(id) ON DELETE SET NULL",
     );
   }
+  const columnasEstados = database
+    .prepare("PRAGMA table_info(insurer_statements)")
+    .all() as { name: string }[];
+  if (!columnasEstados.some((c) => c.name === "hash")) {
+    database.exec("ALTER TABLE insurer_statements ADD COLUMN hash TEXT");
+  }
+  database.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_statements_hash ON insurer_statements(hash) WHERE hash IS NOT NULL",
+  );
 }
 
 // Carpeta para archivos subidos (documentos de agentes, plantillas de

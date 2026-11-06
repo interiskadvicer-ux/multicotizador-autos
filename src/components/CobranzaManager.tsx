@@ -11,6 +11,7 @@ const input =
   "mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm shadow-sm outline-none focus:border-sky-500";
 
 interface Fila extends Coincidencia {
+  yaAplicado: boolean;
   elegida: boolean;
   monto: string;
   fechaPago: string;
@@ -28,6 +29,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
   const [leyendo, setLeyendo] = useState(false);
   const [conciliacion, setConciliacion] = useState<{
     estadoCuentaId: number;
+    cargadoEl: string | null;
     sinTexto: boolean;
     polizasRevisadas: number;
     filas: Fila[];
@@ -81,13 +83,14 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
       if (!res.ok) throw new Error(data.error ?? "No se pudo leer el estado de cuenta.");
       setConciliacion({
         estadoCuentaId: data.estadoCuentaId,
+        cargadoEl: data.cargadoEl,
         sinTexto: data.sinTexto,
         polizasRevisadas: data.polizasRevisadas,
-        filas: (data.coincidencias as Coincidencia[]).map((c) => ({
+        filas: (data.coincidencias as (Coincidencia & { yaAplicado: boolean })[]).map((c) => ({
           ...c,
-          elegida: c.saldo > 0,
+          elegida: c.saldo > 0 && !c.yaAplicado,
           monto: String(c.montoSugerido),
-          fechaPago: hoy(),
+          fechaPago: c.fechaDocumento ?? hoy(),
         })),
       });
       cargar();
@@ -106,7 +109,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
 
   async function aplicar() {
     if (!conciliacion) return;
-    const elegidas = conciliacion.filas.filter((f) => f.elegida);
+    const elegidas = conciliacion.filas.filter((f) => f.elegida && !f.yaAplicado);
     if (elegidas.length === 0) return;
     setAplicando(true);
     setError(null);
@@ -118,7 +121,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
           polizaId: f.polizaId,
           monto: Number(f.monto),
           fechaPago: f.fechaPago,
-          referencia: archivo?.name ?? null,
+          referencia: (archivo?.name ?? "").slice(0, 120) || null,
         })),
       }),
     });
@@ -194,7 +197,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-800">Cargar estado de cuenta de aseguradora</h2>
         <p className="mt-1 text-xs text-slate-500">
-          Se buscan en el PDF los números de póliza registrados. Revisa las coincidencias y confirma
+          Se buscan en el archivo los números de póliza registrados. Revisa las coincidencias y confirma
           cuáles se dan por pagadas.
         </p>
         <form onSubmit={leerEstadoCuenta} className="mt-4 grid gap-3 sm:grid-cols-[200px_1fr_auto] sm:items-end">
@@ -210,10 +213,10 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
             </select>
           </label>
           <label className="text-xs text-slate-600">
-            Estado de cuenta (PDF)
+            Estado de cuenta (PDF, CSV o Excel)
             <input
               type="file"
-              accept="application/pdf"
+              accept=".pdf,.csv,.xlsx,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
               className={input}
             />
@@ -229,9 +232,16 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
 
         {conciliacion && (
           <div className="mt-5">
+            {conciliacion.cargadoEl && (
+              <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">
+                Este estado de cuenta ya se había cargado el {conciliacion.cargadoEl.slice(0, 10)}. Las
+                pólizas que ya se pagaron con él aparecen como &quot;Ya aplicado&quot; y no se pueden volver a
+                registrar.
+              </div>
+            )}
             {conciliacion.sinTexto ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                El PDF no contiene texto (parece escaneado). Pide a la aseguradora el estado de cuenta
+                El archivo no contiene texto (si es PDF, parece escaneado). Pide a la aseguradora el estado de cuenta
                 electrónico o registra los pagos manualmente.
               </div>
             ) : conciliacion.filas.length === 0 ? (
@@ -252,18 +262,24 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                         <th className="px-3 py-2 text-right">Saldo</th>
                         <th className="px-3 py-2">Monto pagado</th>
                         <th className="px-3 py-2">Fecha de pago</th>
-                        <th className="px-3 py-2">Renglón en el PDF</th>
+                        <th className="px-3 py-2">En el estado de cuenta</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {conciliacion.filas.map((f, i) => (
                         <tr key={f.polizaId}>
                           <td className="px-3 py-2">
-                            <input
-                              type="checkbox"
-                              checked={f.elegida}
-                              onChange={(e) => editarFila(i, { elegida: e.target.checked })}
-                            />
+                            {f.yaAplicado ? (
+                              <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                Ya aplicado
+                              </span>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={f.elegida}
+                                onChange={(e) => editarFila(i, { elegida: e.target.checked })}
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-2 font-medium text-slate-800">
                             {f.numeroPoliza}
@@ -292,8 +308,17 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                               className="rounded-lg border border-slate-300 px-2 py-1 text-sm"
                             />
                           </td>
-                          <td className="max-w-xs truncate px-3 py-2 font-mono text-xs text-slate-500" title={f.linea}>
-                            {f.linea}
+                          <td className="max-w-xs px-3 py-2 text-xs">
+                            <span
+                              className={`inline-block rounded-full px-2 py-0.5 font-medium ${
+                                f.importeCoincide ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {f.importeCoincide ? "Importe coincide" : "Verifica el importe"}
+                            </span>
+                            <div className="mt-1 truncate font-mono text-slate-500" title={f.linea}>
+                              {f.linea}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -302,12 +327,12 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs text-slate-500">
-                    {conciliacion.filas.length} de {conciliacion.polizasRevisadas} pólizas encontradas en el PDF.
+                    {conciliacion.filas.length} de {conciliacion.polizasRevisadas} pólizas encontradas en el archivo.
                   </span>
                   <button
                     type="button"
                     onClick={aplicar}
-                    disabled={aplicando || !conciliacion.filas.some((f) => f.elegida)}
+                    disabled={aplicando || !conciliacion.filas.some((f) => f.elegida && !f.yaAplicado)}
                     className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
                     {aplicando ? "Registrando…" : "Dar por pagadas las seleccionadas"}
