@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let omitidos = 0;
   db.transaction(() => {
     for (const p of validos) {
-      if (pagoDeEstadoCuenta(p.polizaId, statementId)) {
+      if (pagoDeEstadoCuenta(p.polizaId, statementId, p.recibo)) {
         omitidos++;
         continue;
       }

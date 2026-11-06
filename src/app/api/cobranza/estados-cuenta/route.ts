@@ -55,12 +55,12 @@ export async function POST(req: Request) {
     .map((p) => ({ ...p, pagado: p.pagado ?? 0 }));
   const coincidencias = conciliar(doc, polizas).map((c) => ({
     ...c,
-    yaAplicado: pagoDeEstadoCuenta(c.polizaId, id),
+    yaAplicado: pagoDeEstadoCuenta(c.polizaId, id, c.recibo),
   }));
   registrarActividad(
     sesion,
     "ESTADO_CUENTA_CARGAR",
-    `${archivo.name} (${aseguradora || "todas"}): ${coincidencias.length} pólizas encontradas`,
+    `${archivo.name} (${aseguradora || "todas"}): ${coincidencias.length} pagos encontrados`,
   );
   return NextResponse.json({
     estadoCuentaId: id,

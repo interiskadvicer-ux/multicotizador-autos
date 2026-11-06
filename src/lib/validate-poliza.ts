@@ -1,4 +1,4 @@
-import type { PolizaInput } from "@/domain/admin";
+import { RECIBOS_POR_FORMA, type FormaPagoPoliza, type PolizaInput } from "@/domain/admin";
 
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -25,6 +25,9 @@ export function parsePolizaInput(
       : Number(b.agenteId);
   if (agenteId !== null && !Number.isInteger(agenteId))
     return { data: null, error: "El agente no es válido." };
+  const formaPago = String(b.formaPago ?? "ANUAL").toUpperCase() as FormaPagoPoliza;
+  if (!(formaPago in RECIBOS_POR_FORMA))
+    return { data: null, error: "La forma de pago no es válida." };
   const notas =
     typeof b.notas === "string" && b.notas.trim() ? b.notas.trim() : undefined;
 
@@ -57,6 +60,7 @@ export function parsePolizaInput(
       vigenciaInicio,
       vigenciaFin,
       notas,
+      formaPago,
       agenteId,
     },
     error: null,

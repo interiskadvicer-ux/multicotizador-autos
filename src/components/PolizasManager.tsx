@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RAMOS, type Poliza } from "@/domain/admin";
+import type { FormaPagoPoliza } from "@/domain/admin";
 import type { EstadoVigencia } from "@/lib/polizas";
 import { formatMXN } from "@/lib/format";
 
@@ -34,8 +35,16 @@ interface FormState {
   vigenciaInicio: string;
   vigenciaFin: string;
   notas: string;
+  formaPago: FormaPagoPoliza;
   agenteId: string;
 }
+
+const FORMAS_PAGO: { valor: FormaPagoPoliza; texto: string }[] = [
+  { valor: "ANUAL", texto: "Anual (1 recibo)" },
+  { valor: "SEMESTRAL", texto: "Semestral (2 recibos)" },
+  { valor: "TRIMESTRAL", texto: "Trimestral (4 recibos)" },
+  { valor: "MENSUAL", texto: "Mensual (12 recibos)" },
+];
 
 const FORM_VACIO: FormState = {
   id: null,
@@ -48,6 +57,7 @@ const FORM_VACIO: FormState = {
   vigenciaInicio: "",
   vigenciaFin: "",
   notas: "",
+  formaPago: "ANUAL",
   agenteId: "",
 };
 
@@ -126,6 +136,7 @@ export default function PolizasManager({ soloLectura = false }: Props) {
       vigenciaInicio: p.vigenciaInicio,
       vigenciaFin: p.vigenciaFin,
       notas: p.notas ?? "",
+      formaPago: p.formaPago ?? "ANUAL",
       agenteId: p.agenteId ? String(p.agenteId) : "",
     });
   }
@@ -145,6 +156,7 @@ export default function PolizasManager({ soloLectura = false }: Props) {
       vigenciaInicio: form.vigenciaInicio,
       vigenciaFin: form.vigenciaFin,
       notas: form.notas || undefined,
+      formaPago: form.formaPago,
       agenteId: form.agenteId ? Number(form.agenteId) : null,
     };
     try {
@@ -337,6 +349,22 @@ export default function PolizasManager({ soloLectura = false }: Props) {
               />
             </div>
             <div>
+              <label className={labelCls}>Forma de pago</label>
+              <select
+                className={inputCls}
+                value={form.formaPago}
+                onChange={(e) =>
+                  setForm({ ...form, formaPago: e.target.value as FormaPagoPoliza })
+                }
+              >
+                {FORMAS_PAGO.map((f) => (
+                  <option key={f.valor} value={f.valor}>
+                    {f.texto}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>Vigencia inicio</label>
               <input
                 type="date"
@@ -428,7 +456,14 @@ export default function PolizasManager({ soloLectura = false }: Props) {
                     <td className="px-4 py-3 font-medium text-slate-800">
                       {p.numeroPoliza}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{p.ramo}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {p.ramo}
+                      {p.formaPago && p.formaPago !== "ANUAL" && (
+                        <div className="text-xs text-slate-400">
+                          {p.formaPago.charAt(0) + p.formaPago.slice(1).toLowerCase()}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       {p.aseguradora}
                     </td>

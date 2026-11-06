@@ -16,6 +16,8 @@ export interface Pago {
   referencia: string | null;
   origen: OrigenPago;
   statementId: number | null;
+  // Número de recibo de la aseguradora (pólizas en parcialidades).
+  recibo: string | null;
   notas: string | null;
   createdBy: number | null;
   createdAt: string;
@@ -29,6 +31,7 @@ export interface PagoInput {
   notas?: string | null;
   origen?: OrigenPago;
   statementId?: number | null;
+  recibo?: string | null;
 }
 
 export interface EstadoCuenta {
@@ -52,6 +55,7 @@ interface PagoRow {
   referencia: string | null;
   origen: OrigenPago;
   statement_id: number | null;
+  recibo: string | null;
   notas: string | null;
   created_by: number | null;
   created_at: string;
@@ -69,6 +73,7 @@ function mapPago(r: PagoRow): Pago {
     referencia: r.referencia,
     origen: r.origen,
     statementId: r.statement_id,
+    recibo: r.recibo,
     notas: r.notas,
     createdBy: r.created_by,
     createdAt: r.created_at,
@@ -95,8 +100,8 @@ export function registrarPago(input: PagoInput, usuarioId: number): number {
   const info = db
     .prepare(
       `INSERT INTO policy_payments
-        (poliza_id, fecha_pago, monto, referencia, origen, statement_id, notas, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (poliza_id, fecha_pago, monto, referencia, origen, statement_id, recibo, notas, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.polizaId,
@@ -105,6 +110,7 @@ export function registrarPago(input: PagoInput, usuarioId: number): number {
       input.referencia?.trim() || null,
       input.origen ?? "MANUAL",
       input.statementId ?? null,
+      input.recibo?.trim() || null,
       input.notas?.trim() || null,
       usuarioId,
     );
@@ -115,9 +121,20 @@ export function eliminarPago(id: number): boolean {
   return db.prepare("DELETE FROM policy_payments WHERE id = ?").run(id).changes > 0;
 }
 
-export function pagoDeEstadoCuenta(polizaId: number, statementId: number): boolean {
+export function pagoDeEstadoCuenta(
+  polizaId: number,
+  statementId: number,
+  recibo?: string | null,
+): boolean {
+  if (recibo) {
+    return !!db
+      .prepare("SELECT 1 FROM policy_payments WHERE poliza_id = ? AND recibo = ?")
+      .get(polizaId, recibo);
+  }
   return !!db
-    .prepare("SELECT 1 FROM policy_payments WHERE poliza_id = ? AND statement_id = ?")
+    .prepare(
+      "SELECT 1 FROM policy_payments WHERE poliza_id = ? AND statement_id = ? AND recibo IS NULL",
+    )
     .get(polizaId, statementId);
 }
 
@@ -218,7 +235,14 @@ export function parsePago(b: unknown): { data: PagoInput; error: null } | { data
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaPago)) return { data: null, error: "Fecha de pago inválida." };
   const texto = (v: unknown, max: number) => (v == null ? null : String(v).trim().slice(0, max) || null);
   return {
-    data: { polizaId, monto, fechaPago, referencia: texto(o.referencia, 120), notas: texto(o.notas, 500) },
+    data: {
+      polizaId,
+      monto,
+      fechaPago,
+      referencia: texto(o.referencia, 120),
+      recibo: texto(o.recibo, 40),
+      notas: texto(o.notas, 500),
+    },
     error: null,
   };
 }

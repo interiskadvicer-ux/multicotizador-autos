@@ -40,6 +40,7 @@ function inicializarEsquema(database: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       numero_poliza TEXT NOT NULL,
       ramo TEXT NOT NULL,
+      forma_pago TEXT NOT NULL DEFAULT 'ANUAL',
       aseguradora TEXT NOT NULL,
       asegurado TEXT NOT NULL,
       prima_neta REAL NOT NULL,
@@ -135,6 +136,7 @@ function inicializarEsquema(database: Database.Database): void {
       referencia TEXT,
       origen TEXT NOT NULL DEFAULT 'MANUAL',
       statement_id INTEGER,
+      recibo TEXT,
       notas TEXT,
       created_by INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -145,8 +147,6 @@ function inicializarEsquema(database: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_policies_vigencia_fin ON policies(vigencia_fin);
     CREATE INDEX IF NOT EXISTS idx_payments_poliza ON policy_payments(poliza_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_statement
-      ON policy_payments(poliza_id, statement_id) WHERE statement_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_quotes_usuario ON quotes(usuario_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_applications_email ON agent_applications(email);
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at);
@@ -177,6 +177,25 @@ function inicializarEsquema(database: Database.Database): void {
   database.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_statements_hash ON insurer_statements(hash) WHERE hash IS NOT NULL",
   );
+  if (!columnasPolizas.some((c) => c.name === "forma_pago")) {
+    database.exec("ALTER TABLE policies ADD COLUMN forma_pago TEXT NOT NULL DEFAULT 'ANUAL'");
+  }
+  const columnasPagos = database
+    .prepare("PRAGMA table_info(policy_payments)")
+    .all() as { name: string }[];
+  if (!columnasPagos.some((c) => c.name === "recibo")) {
+    database.exec("ALTER TABLE policy_payments ADD COLUMN recibo TEXT");
+  }
+  // Un recibo se cobra una sola vez por póliza, aunque venga en varios
+  // estados de cuenta; sin número de recibo, una vez por estado de cuenta.
+  database.exec(`
+    DROP INDEX IF EXISTS idx_payments_statement;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_recibo
+      ON policy_payments(poliza_id, recibo) WHERE recibo IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_statement_sin_recibo
+      ON policy_payments(poliza_id, statement_id)
+      WHERE statement_id IS NOT NULL AND recibo IS NULL;
+  `);
 }
 
 // Carpeta para archivos subidos (documentos de agentes, plantillas de

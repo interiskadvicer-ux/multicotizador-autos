@@ -295,6 +295,10 @@ export function emitirCotizacion(
           notas: `Emitida desde cotización #${cot.id} · ${cot.vehiculo}${serie}${
             cot.paquete ? ` · ${cot.paquete}` : ""
           }`,
+          formaPago:
+            !cot.request?.formaPago || cot.request.formaPago === "CONTADO"
+              ? "ANUAL"
+              : cot.request.formaPago,
           agenteId: dueno?.rol === "AGENTE" ? cot.usuarioId : null,
         },
         adminId,

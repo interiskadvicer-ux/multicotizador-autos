@@ -1,9 +1,12 @@
 import type { Celda, DocumentoEstado, Renglon } from "@/lib/documento-estado";
 
+import { RECIBOS_POR_FORMA, type FormaPagoPoliza } from "@/domain/admin";
+
 // Conciliación de estados de cuenta de aseguradoras contra las pólizas
 // registradas: busca cada número de póliza y toma los importes de su renglón
 // o, en reportes donde cada póliza es una columna (p. ej. Quálitas), de su
-// columna.
+// columna. Si el documento trae número de recibo (p. ej. GNP), cada recibo
+// es un pago distinto de la misma póliza.
 
 export interface PolizaConciliable {
   id: number;
@@ -13,6 +16,7 @@ export interface PolizaConciliable {
   primaNeta: number;
   primaTotal: number;
   pagado: number;
+  formaPago?: FormaPagoPoliza;
 }
 
 export interface Coincidencia {
@@ -29,6 +33,11 @@ export interface Coincidencia {
   // Algún importe del documento coincide con la prima o el saldo.
   importeCoincide: boolean;
   fechaDocumento: string | null;
+  recibo: string | null;
+  periodo: string | null;
+  formaPago: FormaPagoPoliza;
+  // Importe esperado de cada recibo según la forma de pago.
+  montoRecibo: number;
 }
 
 export function normalizar(s: string): string {
@@ -119,70 +128,140 @@ function columna(doc: DocumentoEstado, r: Renglon, desde: number, hasta: number)
   return textos;
 }
 
-// En CSV/Excel, la columna cuyo encabezado dice "Fecha de pago".
-function columnaFechaPago(doc: DocumentoEstado): number | null {
+// En CSV/Excel, la posición de la columna cuyo encabezado cumple `re`.
+function columnaTabla(doc: DocumentoEstado, re: RegExp): number | null {
   for (const r of doc.renglones.slice(0, 10)) {
-    const c = r.celdas.find((x) => /FECHA(DE)?PAGO/.test(normalizar(x.texto)));
+    const c = r.celdas.find((x) => re.test(normalizar(x.texto)));
     if (c) return c.x;
   }
   return null;
 }
 
+const RE_RECIBO = /^(NO|NUM|NUMERO)?(DE|DEL)?RECIBO/;
+const RE_MONTO = /^(MONTO|IMPORTE)/;
+const RE_FECHA_PAGO = /FECHA(DE)?PAGO/;
+
+// En PDF, la celda de encabezado "Recibo" más cercana arriba del renglón
+// (misma página).
+function encabezadoPdf(doc: DocumentoEstado, r: Renglon, re: RegExp): Celda | null {
+  let mejor: { c: Celda; y: number } | null = null;
+  for (const o of doc.renglones) {
+    if (o.pagina !== r.pagina || o === r) continue;
+    const c = o.celdas.find((x) => re.test(normalizar(x.texto)) && normalizar(x.texto).length <= 16);
+    if (c && (!mejor || Math.abs(o.y - r.y) < Math.abs(mejor.y - r.y))) mejor = { c, y: o.y };
+  }
+  return mejor?.c ?? null;
+}
+
+function celdaBajo(r: Renglon, h: Celda): Celda | null {
+  const centro = h.x + h.ancho / 2;
+  const dist = (c: Celda) => Math.abs(c.x + c.ancho / 2 - centro);
+  const cercana = r.celdas.reduce<Celda | null>((a, b) => (!a || dist(b) < dist(a) ? b : a), null);
+  return cercana && dist(cercana) <= Math.max(30, h.ancho * 1.5) ? cercana : null;
+}
+
+function limpiarRecibo(texto: string | undefined, poliza: string): string | null {
+  const t = (texto ?? "").trim().split(/\s+/)[0] ?? "";
+  const n = normalizar(t);
+  if (n.length < 3 || !/\d/.test(n) || sinCeros(n) === sinCeros(poliza)) return null;
+  return t.slice(0, 40);
+}
+
 const cerca = (a: number, b: number) => b > 0 && Math.abs(a - b) <= Math.max(1, b * 0.02);
+const redondear = (n: number) => Math.round(n * 100) / 100;
 
 export function conciliar(doc: DocumentoEstado, polizas: PolizaConciliable[]): Coincidencia[] {
   const resultado: Coincidencia[] = [];
-  const colFecha = doc.tipo === "pdf" ? null : columnaFechaPago(doc);
+  const tabla = doc.tipo !== "pdf";
+  const colFecha = tabla ? columnaTabla(doc, RE_FECHA_PAGO) : null;
+  const colRecibo = tabla ? columnaTabla(doc, RE_RECIBO) : null;
+  const colMonto = tabla ? columnaTabla(doc, RE_MONTO) : null;
+  const colDesde = tabla ? columnaTabla(doc, /PERIODODESDE|VIGENCIADESDE|DESDE$/) : null;
+  const colHasta = tabla ? columnaTabla(doc, /PERIODOHASTA|VIGENCIAHASTA|HASTA$/) : null;
+  const celda = (r: Renglon, x: number | null) =>
+    x == null ? undefined : r.celdas.find((c) => c.x === x);
+
   for (const p of polizas) {
     const objetivo = normalizar(p.numeroPoliza);
     if (objetivo.length < 4) continue;
-    let renglon: Renglon | null = null;
-    let rango: [number, number] | null = null;
-    for (const r of doc.renglones) {
-      rango = buscarEnRenglon(r, objetivo);
-      if (rango) {
-        renglon = r;
-        break;
+    const formaPago = p.formaPago ?? "ANUAL";
+    const recibos = RECIBOS_POR_FORMA[formaPago] ?? 1;
+    const vistos = new Set<string>();
+    let encontrada = false;
+
+    for (const renglon of doc.renglones) {
+      const rango = buscarEnRenglon(renglon, objetivo);
+      if (!rango) continue;
+
+      let recibo: string | null = null;
+      if (tabla) {
+        recibo = limpiarRecibo(celda(renglon, colRecibo)?.texto, objetivo);
+      } else if (extraerMontos(textoRenglon(renglon)).length > 0) {
+        // Solo en reportes por renglón; en los de columnas (Quálitas) los
+        // vecinos son otras pólizas.
+        const h = encabezadoPdf(doc, renglon, RE_RECIBO);
+        const c = h ? celdaBajo(renglon, h) : null;
+        recibo = c ? limpiarRecibo(c.texto, objetivo) : null;
       }
-    }
-    if (!renglon || !rango) continue;
+      // Sin número de recibo solo se toma la primera aparición de la póliza.
+      if (recibo ? vistos.has(normalizar(recibo)) : encontrada) continue;
+      if (recibo) vistos.add(normalizar(recibo));
+      encontrada = true;
 
-    const linea = textoRenglon(renglon);
-    let montos = extraerMontos(linea);
-    const celdaFecha = colFecha == null ? undefined : renglon.celdas.find((c) => c.x === colFecha);
-    let fechas = extraerFechas(celdaFecha?.texto ?? linea);
-    let detalle = linea;
-    if (montos.length === 0 && doc.tipo === "pdf") {
-      const col = columna(doc, renglon, rango[0], rango[1]);
-      montos = col.flatMap(extraerMontos);
-      if (fechas.length === 0) fechas = col.flatMap(extraerFechas);
-      detalle = `${linea.slice(0, 80)} … ${montos.slice(0, 6).join(" · ")}`;
-    }
+      const linea = textoRenglon(renglon);
+      const celdaMonto = celda(renglon, colMonto);
+      let montos = celdaMonto ? extraerMontos(celdaMonto.texto) : [];
+      if (montos.length === 0) montos = extraerMontos(linea);
+      const celdaFecha = celda(renglon, colFecha);
+      let fechas = extraerFechas(celdaFecha?.texto ?? linea);
+      let detalle = linea;
+      if (montos.length === 0 && !tabla) {
+        const col = columna(doc, renglon, rango[0], rango[1]);
+        montos = col.flatMap(extraerMontos);
+        if (fechas.length === 0) fechas = col.flatMap(extraerFechas);
+        detalle = `${linea.slice(0, 80)} … ${montos.slice(0, 6).join(" · ")}`;
+      }
+      const desde = celda(renglon, colDesde)?.texto.trim();
+      const hasta = celda(renglon, colHasta)?.texto.trim();
+      const periodo = desde || hasta ? `${desde ?? "?"} a ${hasta ?? "?"}` : null;
 
-    const saldo = Math.max(0, Math.round((p.primaTotal - p.pagado) * 100) / 100);
-    const referencia = saldo > 0 ? saldo : p.primaTotal;
-    const importeCoincide = montos.some(
-      (m) => cerca(m, saldo) || cerca(m, p.primaTotal) || cerca(m, p.primaNeta),
-    );
-    const montoSugerido =
-      importeCoincide || montos.length === 0
+      const saldo = Math.max(0, redondear(p.primaTotal - p.pagado));
+      const montoRecibo = redondear(p.primaTotal / recibos);
+      const netaRecibo = redondear(p.primaNeta / recibos);
+      const referencia = saldo > 0 ? saldo : p.primaTotal;
+      const total = montos.some(
+        (m) => cerca(m, saldo) || cerca(m, p.primaTotal) || cerca(m, p.primaNeta),
+      );
+      const parcial =
+        !total && recibos > 1 && montos.some((m) => cerca(m, montoRecibo) || cerca(m, netaRecibo));
+      const esperado = recibos > 1 ? Math.min(montoRecibo, referencia) : referencia;
+      const montoSugerido = total
         ? referencia
-        : montos.reduce((a, b) => (Math.abs(b - referencia) < Math.abs(a - referencia) ? b : a));
+        : parcial
+          ? esperado
+          : montos.length === 0
+            ? esperado
+            : montos.reduce((a, b) => (Math.abs(b - esperado) < Math.abs(a - esperado) ? b : a));
 
-    resultado.push({
-      polizaId: p.id,
-      numeroPoliza: p.numeroPoliza,
-      asegurado: p.asegurado,
-      aseguradora: p.aseguradora,
-      primaTotal: p.primaTotal,
-      pagado: p.pagado,
-      saldo,
-      linea: detalle.slice(0, 240),
-      montosLinea: montos.slice(0, 12),
-      montoSugerido,
-      importeCoincide,
-      fechaDocumento: fechaDePago(fechas),
-    });
+      resultado.push({
+        polizaId: p.id,
+        numeroPoliza: p.numeroPoliza,
+        asegurado: p.asegurado,
+        aseguradora: p.aseguradora,
+        primaTotal: p.primaTotal,
+        pagado: p.pagado,
+        saldo,
+        linea: detalle.slice(0, 240),
+        montosLinea: montos.slice(0, 12),
+        montoSugerido,
+        importeCoincide: total || parcial,
+        fechaDocumento: fechaDePago(fechas),
+        recibo,
+        periodo,
+        formaPago,
+        montoRecibo,
+      });
+    }
   }
   return resultado;
 }

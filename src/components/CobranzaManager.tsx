@@ -6,6 +6,7 @@ import type { PolizaConEstado } from "@/lib/polizas";
 import type { Coincidencia } from "@/lib/conciliacion";
 import type { EstadoCuenta, Pago } from "@/lib/pagos";
 import { formatMXN } from "@/lib/format";
+import { RECIBOS_POR_FORMA } from "@/domain/admin";
 
 const hoy = () => new Date().toLocaleDateString("en-CA");
 const input =
@@ -16,6 +17,13 @@ interface Fila extends Coincidencia {
   elegida: boolean;
   monto: string;
   fechaPago: string;
+}
+
+// Con forma de pago fraccionada se propone el importe de un recibo.
+function montoSugeridoManual(p: PolizaConEstado): number {
+  const recibos = RECIBOS_POR_FORMA[p.formaPago ?? "ANUAL"] ?? 1;
+  const base = p.saldo || p.primaTotal;
+  return Math.round(Math.min(base, p.primaTotal / recibos) * 100) / 100;
 }
 
 export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
@@ -43,6 +51,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
     monto: "",
     fechaPago: hoy(),
     referencia: "",
+    recibo: "",
     notas: "",
   });
   const [guardando, setGuardando] = useState(false);
@@ -124,6 +133,8 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
           monto: Number(f.monto),
           fechaPago: f.fechaPago,
           referencia: (archivo?.name ?? "").slice(0, 120) || null,
+          recibo: f.recibo,
+          notas: f.periodo ? `Periodo ${f.periodo}` : null,
         })),
       }),
     });
@@ -161,7 +172,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
       return;
     }
     setAviso("Pago registrado.");
-    setManual({ polizaId: "", monto: "", fechaPago: hoy(), referencia: "", notas: "" });
+    setManual({ polizaId: "", monto: "", fechaPago: hoy(), referencia: "", recibo: "", notas: "" });
     cargar();
     router.refresh();
   }
@@ -273,7 +284,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {conciliacion.filas.map((f, i) => (
-                        <tr key={f.polizaId}>
+                        <tr key={`${f.polizaId}-${f.recibo ?? i}`}>
                           <td className="px-3 py-2">
                             {f.yaAplicado ? (
                               <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
@@ -290,6 +301,12 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                           <td className="px-3 py-2 font-medium text-slate-800">
                             {f.numeroPoliza}
                             <div className="text-xs font-normal text-slate-500">{f.aseguradora}</div>
+                            {f.recibo && (
+                              <div className="text-xs font-normal text-sky-700">Recibo {f.recibo}</div>
+                            )}
+                            {f.periodo && (
+                              <div className="text-xs font-normal text-slate-500">{f.periodo}</div>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-slate-600">{f.asegurado}</td>
                           <td className="px-3 py-2 text-right text-slate-600">{formatMXN(f.primaTotal)}</td>
@@ -360,7 +377,7 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
               value={manual.polizaId}
               onChange={(e) => {
                 const p = polizas.find((x) => x.id === Number(e.target.value));
-                setManual({ ...manual, polizaId: e.target.value, monto: p ? String(p.saldo || p.primaTotal) : "" });
+                setManual({ ...manual, polizaId: e.target.value, monto: p ? String(montoSugeridoManual(p)) : "" });
               }}
               className={input}
             >
@@ -400,7 +417,16 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
             <input
               value={manual.referencia}
               onChange={(e) => setManual({ ...manual, referencia: e.target.value })}
-              placeholder="Recibo, folio…"
+              placeholder="Folio, transferencia…"
+              className={input}
+            />
+          </label>
+          <label className="text-xs text-slate-600">
+            No. de recibo
+            <input
+              value={manual.recibo}
+              onChange={(e) => setManual({ ...manual, recibo: e.target.value })}
+              placeholder="Opcional"
               className={input}
             />
           </label>
@@ -462,7 +488,10 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                         <span className="text-slate-600">Manual</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{p.referencia ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500">
+                      {p.recibo && <div className="font-medium text-slate-700">Recibo {p.recibo}</div>}
+                      {p.referencia ?? (p.recibo ? null : "—")}
+                    </td>
                     {esAdmin && (
                       <td className="px-3 py-2 text-right">
                         <button

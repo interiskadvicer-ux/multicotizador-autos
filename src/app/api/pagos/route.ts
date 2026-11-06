@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiSesion } from "@/lib/api-auth";
 import { obtenerPoliza } from "@/lib/polizas";
-import { listarPagos, parsePago, registrarPago } from "@/lib/pagos";
+import { listarPagos, pagoDeEstadoCuenta, parsePago, registrarPago } from "@/lib/pagos";
 import { registrarActividad } from "@/lib/activity";
 import { formatMXN } from "@/lib/format";
 
@@ -21,6 +21,12 @@ export async function POST(req: Request) {
   if (parsed.error !== null) return NextResponse.json({ error: parsed.error }, { status: 422 });
   const poliza = obtenerPoliza(parsed.data.polizaId);
   if (!poliza) return NextResponse.json({ error: "Póliza no encontrada." }, { status: 404 });
+  if (parsed.data.recibo && pagoDeEstadoCuenta(poliza.id, 0, parsed.data.recibo)) {
+    return NextResponse.json(
+      { error: `El recibo ${parsed.data.recibo} ya está registrado en esta póliza.` },
+      { status: 409 },
+    );
+  }
   const id = registrarPago({ ...parsed.data, origen: "MANUAL" }, sesion.id);
   registrarActividad(
     sesion,

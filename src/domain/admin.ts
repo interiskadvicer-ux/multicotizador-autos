@@ -43,6 +43,15 @@ export interface SesionUsuario {
   rol: Rol;
 }
 
+export type FormaPagoPoliza = "ANUAL" | "SEMESTRAL" | "TRIMESTRAL" | "MENSUAL";
+
+export const RECIBOS_POR_FORMA: Record<FormaPagoPoliza, number> = {
+  ANUAL: 1,
+  SEMESTRAL: 2,
+  TRIMESTRAL: 4,
+  MENSUAL: 12,
+};
+
 export interface Poliza {
   id: number;
   numeroPoliza: string;
@@ -54,6 +63,8 @@ export interface Poliza {
   vigenciaInicio: string; // ISO yyyy-mm-dd
   vigenciaFin: string; // ISO yyyy-mm-dd
   notas?: string;
+  // Define cuántos recibos se esperan en la vigencia (anual = 1).
+  formaPago?: FormaPagoPoliza;
   // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
   agenteId?: number | null;
   // Suma de pagos registrados (manuales o por estado de cuenta).

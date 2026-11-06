@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import type { Poliza, PolizaInput } from "@/domain/admin";
+import type { FormaPagoPoliza, Poliza, PolizaInput } from "@/domain/admin";
 
 interface PolicyRow {
   id: number;
@@ -12,6 +12,7 @@ interface PolicyRow {
   vigencia_inicio: string;
   vigencia_fin: string;
   notas: string | null;
+  forma_pago: FormaPagoPoliza | null;
   agente_id: number | null;
   pagado: number | null;
   created_by: number | null;
@@ -31,6 +32,7 @@ function mapPoliza(row: PolicyRow): Poliza {
     vigenciaInicio: row.vigencia_inicio,
     vigenciaFin: row.vigencia_fin,
     notas: row.notas ?? undefined,
+    formaPago: row.forma_pago ?? "ANUAL",
     agenteId: row.agente_id,
     pagado: row.pagado ?? 0,
     createdBy: row.created_by,
@@ -69,8 +71,8 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
     .prepare(
       `INSERT INTO policies
         (numero_poliza, ramo, aseguradora, asegurado, prima_neta, prima_total,
-         vigencia_inicio, vigencia_fin, notas, agente_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         vigencia_inicio, vigencia_fin, notas, forma_pago, agente_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.numeroPoliza.trim(),
@@ -82,6 +84,7 @@ export function crearPoliza(input: PolizaInput, createdBy: number): Poliza {
       input.vigenciaInicio,
       input.vigenciaFin,
       input.notas?.trim() || null,
+      input.formaPago ?? "ANUAL",
       input.agenteId ?? null,
       createdBy,
     );
@@ -98,7 +101,7 @@ export function actualizarPoliza(
     `UPDATE policies SET
        numero_poliza = ?, ramo = ?, aseguradora = ?, asegurado = ?,
        prima_neta = ?, prima_total = ?, vigencia_inicio = ?, vigencia_fin = ?,
-       notas = ?, agente_id = ?, updated_at = datetime('now')
+       notas = ?, forma_pago = ?, agente_id = ?, updated_at = datetime('now')
      WHERE id = ?`,
   ).run(
     input.numeroPoliza.trim(),
@@ -110,6 +113,7 @@ export function actualizarPoliza(
     input.vigenciaInicio,
     input.vigenciaFin,
     input.notas?.trim() || null,
+    input.formaPago ?? "ANUAL",
     input.agenteId ?? null,
     id,
   );
