@@ -350,7 +350,9 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs text-slate-500">
-                    {conciliacion.filas.length} de {conciliacion.polizasRevisadas} pólizas encontradas en el archivo.
+                    {conciliacion.filas.length} {conciliacion.filas.length === 1 ? "pago" : "pagos"} de{" "}
+                    {new Set(conciliacion.filas.map((f) => f.polizaId)).size} de{" "}
+                    {conciliacion.polizasRevisadas} pólizas encontrados en el archivo.
                   </span>
                   <button
                     type="button"

@@ -232,13 +232,16 @@ export function conciliar(doc: DocumentoEstado, polizas: PolizaConciliable[]): C
       const total = montos.some(
         (m) => cerca(m, saldo) || cerca(m, p.primaTotal) || cerca(m, p.primaNeta),
       );
+      // El importe del recibo en el archivo manda sobre total / recibos
+      // (el redondeo de la aseguradora puede variar un centavo).
+      const importeRecibo = total ? undefined : montos.find((m) => cerca(m, montoRecibo));
       const parcial =
-        !total && recibos > 1 && montos.some((m) => cerca(m, montoRecibo) || cerca(m, netaRecibo));
+        !total && recibos > 1 && (importeRecibo !== undefined || montos.some((m) => cerca(m, netaRecibo)));
       const esperado = recibos > 1 ? Math.min(montoRecibo, referencia) : referencia;
       const montoSugerido = total
         ? referencia
         : parcial
-          ? esperado
+          ? Math.min(importeRecibo ?? esperado, referencia)
           : montos.length === 0
             ? esperado
             : montos.reduce((a, b) => (Math.abs(b - esperado) < Math.abs(a - esperado) ? b : a));
