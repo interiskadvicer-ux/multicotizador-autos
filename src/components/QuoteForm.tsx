@@ -376,12 +376,18 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <section>
+        <p className="mb-4 text-xs text-slate-500">
+          <span className="text-red-600">*</span> Datos obligatorios para cotizar
+        </p>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-sky-700">
           Datos del vehículo
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className={labelCls}>Marca</label>
+            <label className={labelCls}>
+              Marca
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={marca}
@@ -397,7 +403,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             </select>
           </div>
           <div>
-            <label className={labelCls}>Modelo / Línea</label>
+            <label className={labelCls}>
+              Modelo / Línea
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={modelo}
@@ -412,7 +421,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             </select>
           </div>
           <div>
-            <label className={labelCls}>Año</label>
+            <label className={labelCls}>
+              Año
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={anio}
@@ -436,7 +448,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Uso</label>
+            <label className={labelCls}>
+              Uso
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={uso}
@@ -635,7 +650,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Fecha de nacimiento</label>
+            <label className={labelCls}>
+              Fecha de nacimiento
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               type="date"
               className={inputCls}
@@ -645,7 +663,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Género</label>
+            <label className={labelCls}>
+              Género
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={genero}
@@ -656,7 +677,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             </select>
           </div>
           <div>
-            <label className={labelCls}>Código postal</label>
+            <label className={labelCls}>
+              Código postal
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               className={inputCls}
               value={cpVehiculo}
@@ -701,7 +725,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
           comparativo.
         </p>
         <div className="max-w-xs">
-          <label className={labelCls}>Forma de pago</label>
+          <label className={labelCls}>
+              Forma de pago
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
           <select
             className={inputCls}
             value={formaPago}
