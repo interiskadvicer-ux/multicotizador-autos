@@ -464,7 +464,13 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                 maxLength={5}
                 disabled={bloqueada}
                 onChange={(e) =>
-                  setContratante({ ...contratante, cp: e.target.value.replace(/\D/g, "").slice(0, 5) })
+                  setContratante({
+                    ...contratante,
+                    cp: e.target.value.replace(/\D/g, "").slice(0, 5),
+                    colonia: "",
+                    municipio: "",
+                    estado: "",
+                  })
                 }
               />
             </div>
