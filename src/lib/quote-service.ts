@@ -8,6 +8,7 @@ function withTimeout(
   aseguradora: string,
   paquete: CotizacionRequest["paquete"],
   promise: Promise<CotizacionResultado>,
+  timeoutMs: number,
 ): Promise<CotizacionResultado> {
   const timeout = new Promise<CotizacionResultado>((resolve) =>
     setTimeout(
@@ -21,7 +22,7 @@ function withTimeout(
           coberturas: [],
           error: "Tiempo de espera agotado al consultar el web service.",
         }),
-      TIMEOUT_MS,
+      timeoutMs,
     ),
   );
   return Promise.race([promise, timeout]);
@@ -39,6 +40,7 @@ export async function cotizarTodas(
           adapter.nombre,
           request.paquete,
           adapter.cotizar(request),
+          adapter.timeoutMs ?? TIMEOUT_MS,
         );
       } catch (err) {
         return {

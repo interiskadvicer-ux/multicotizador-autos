@@ -10,5 +10,8 @@ export interface InsurerAdapter {
   // Descuento comercial (%) por defecto que ofrece la aseguradora. El broker
   // puede sobreescribirlo por cotización desde el formulario.
   descuentoDefault: number;
+  // Tiempo máximo de espera (ms) para esta aseguradora. Las integraciones
+  // reales que encadenan varias llamadas necesitan más margen que el resto.
+  timeoutMs?: number;
   cotizar(request: CotizacionRequest): Promise<CotizacionResultado>;
 }

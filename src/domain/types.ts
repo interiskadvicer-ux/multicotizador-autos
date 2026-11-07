@@ -21,6 +21,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de Quálitas (ClaveAmis). Requerida para
   // la cotización real de Quálitas; opcional para el resto (simuladas).
   claveAmis?: string;
+  // Clave del vehículo en el catálogo de Banorte. Requerida para la cotización
+  // real de Banorte.
+  claveBanorte?: string;
 }
 
 export interface Conductor {
