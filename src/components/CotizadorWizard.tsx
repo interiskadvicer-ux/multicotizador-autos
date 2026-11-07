@@ -30,6 +30,17 @@ const ETIQUETA_PAQUETE: Record<Paquete, string> = {
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200";
 const labelCls = "mb-1 block text-xs font-medium text-slate-600";
+
+// Mismos campos que exige validate-cotizacion.ts para solicitar emisión.
+const OBLIGATORIOS_EMISION = new Set(["nombre", "rfc", "calle", "colonia", "cp", "serie"]);
+
+function NotaObligatorios() {
+  return (
+    <p className="text-xs text-slate-500">
+      <span className="text-red-600">*</span> Datos obligatorios para solicitar la emisión
+    </p>
+  );
+}
 const btnPrimario =
   "rounded-xl bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:opacity-60";
 const btnSecundario =
@@ -371,6 +382,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
       {paso === 2 && (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">Contratante</h2>
+          <NotaObligatorios />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className={labelCls}>Tipo de persona</label>
@@ -399,7 +411,10 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
               ] as [keyof Contratante, string, string][]
             ).map(([campo, label, cls]) => (
               <div key={campo} className={cls}>
-                <label className={labelCls}>{label}</label>
+                <label className={labelCls}>
+                  {label}
+                  {OBLIGATORIOS_EMISION.has(campo) && <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>}
+                </label>
                 <input
                   className={`${inputCls} ${campo === "rfc" ? "uppercase" : ""}`}
                   value={contratante[campo]}
@@ -427,6 +442,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
       {paso === 3 && (
         <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">Vehículo</h2>
+          <NotaObligatorios />
           {v && (
             <p className="text-sm text-slate-600">
               {v.marca} {v.modelo} {v.anio} · {v.version} · Uso {v.uso.toLowerCase()} · CP {v.cp}
@@ -442,7 +458,10 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
               ] as [keyof DetalleVehiculo, string, number][]
             ).map(([campo, label, max]) => (
               <div key={campo}>
-                <label className={labelCls}>{label}</label>
+                <label className={labelCls}>
+                  {label}
+                  {OBLIGATORIOS_EMISION.has(campo) && <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>}
+                </label>
                 <input
                   className={`${inputCls} ${campo !== "color" ? "uppercase" : ""}`}
                   value={vehiculo[campo]}
