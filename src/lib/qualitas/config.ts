@@ -8,7 +8,7 @@ export type Ambiente = "pruebas" | "produccion";
 // Endpoints del web service de cotización/emisión (obtenerNuevaEmision).
 const WS_EMISION_URL: Record<Ambiente, string> = {
   pruebas: "https://qa.qualitas.com.mx:8443/WsEmision/WsEmision.asmx",
-  produccion: "http://sio.qualitas.com.mx/WsEmision/WsEmision.asmx",
+  produccion: "https://sio.qualitas.com.mx/WsEmision/WsEmision.asmx",
 };
 
 export interface QualitasConfig {
@@ -44,7 +44,7 @@ export function getQualitasConfig(): QualitasConfig {
     wsEmisionUrl: process.env.QUALITAS_WS_URL || WS_EMISION_URL[ambiente],
     wsTarifasUrl:
       process.env.QUALITAS_WS_TARIFAS_URL ||
-      "http://qbcenter.qualitas.com.mx/wsTarifa/wsTarifa.asmx",
+      "https://qbcenter.qualitas.com.mx/wsTarifa/wsTarifa.asmx",
     negocio: process.env.QUALITAS_NEGOCIO || "08849",
     agente: process.env.QUALITAS_AGENTE || "0080245",
     descuentoDefault: Number(process.env.QUALITAS_DESCUENTO_DEFAULT) || 45,
