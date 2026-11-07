@@ -18,6 +18,7 @@ import type {
 } from "@/lib/cotizaciones";
 import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
+import type { UbicacionCp } from "@/lib/sepomex";
 
 const PASOS = ["Datos y coberturas", "Comparativo", "Contratante", "Vehículo", "Resumen"];
 
@@ -100,6 +101,37 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
   const [estado, setEstado] = useState<EstadoCotizacion>("GUARDADA");
   const [seleccion, setSeleccion] = useState<SeleccionCotizacion | null>(null);
   const [contratante, setContratante] = useState<Contratante>(CONTRATANTE_VACIO);
+  const [ubicacion, setUbicacion] = useState<UbicacionCp | null>(null);
+
+  // Con el CP se llenan estado y municipio y se ofrecen sus colonias.
+  useEffect(() => {
+    const cp = contratante.cp;
+    if (!/^\d{5}$/.test(cp)) {
+      setUbicacion(null);
+      return;
+    }
+    let vigente = true;
+    fetch(`/api/codigos-postales/${cp}`)
+      .then((r) => (r.ok ? (r.json() as Promise<UbicacionCp>) : null))
+      .then((u) => {
+        if (!vigente) return;
+        setUbicacion(u);
+        if (!u) return;
+        setContratante((c) => {
+          const elegida = u.colonias.find((x) => x.colonia === c.colonia);
+          return {
+            ...c,
+            estado: u.estado,
+            municipio: elegida?.municipio || u.municipio || c.municipio,
+          };
+        });
+      })
+      .catch(() => vigente && setUbicacion(null));
+    return () => {
+      vigente = false;
+    };
+  }, [contratante.cp]);
+  const coloniasCp = ubicacion?.colonias ?? [];
   const [vehiculo, setVehiculo] = useState<DetalleVehiculo>(VEHICULO_VACIO);
   const [guardando, setGuardando] = useState(false);
 
@@ -404,10 +436,6 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                 ["email", "Correo", ""],
                 ["telefono", "Teléfono", ""],
                 ["calle", "Calle y número", "sm:col-span-2"],
-                ["colonia", "Colonia", ""],
-                ["municipio", "Municipio / alcaldía", ""],
-                ["estado", "Estado", ""],
-                ["cp", "Código postal", ""],
               ] as [keyof Contratante, string, string][]
             ).map(([campo, label, cls]) => (
               <div key={campo} className={cls}>
@@ -424,7 +452,86 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                 />
               </div>
             ))}
+            <div>
+              <label className={labelCls}>
+                Código postal
+                <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+              </label>
+              <input
+                className={inputCls}
+                value={contratante.cp}
+                inputMode="numeric"
+                maxLength={5}
+                disabled={bloqueada}
+                onChange={(e) =>
+                  setContratante({ ...contratante, cp: e.target.value.replace(/\D/g, "").slice(0, 5) })
+                }
+              />
+            </div>
+            <div>
+              <label className={labelCls}>
+                Colonia
+                <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+              </label>
+              {coloniasCp.length > 0 ? (
+                <select
+                  className={inputCls}
+                  value={contratante.colonia}
+                  disabled={bloqueada}
+                  onChange={(e) => {
+                    const elegida = coloniasCp.find((x) => x.colonia === e.target.value);
+                    setContratante({
+                      ...contratante,
+                      colonia: e.target.value,
+                      municipio: elegida?.municipio ?? contratante.municipio,
+                    });
+                  }}
+                >
+                  <option value="">Selecciona la colonia</option>
+                  {contratante.colonia && !coloniasCp.some((x) => x.colonia === contratante.colonia) && (
+                    <option value={contratante.colonia}>{contratante.colonia}</option>
+                  )}
+                  {coloniasCp.map((x) => (
+                    <option key={`${x.municipio}-${x.colonia}`} value={x.colonia}>
+                      {x.colonia}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className={inputCls}
+                  value={contratante.colonia}
+                  maxLength={200}
+                  disabled={bloqueada}
+                  placeholder={/^\d{5}$/.test(contratante.cp) ? "" : "Captura primero el código postal"}
+                  onChange={(e) => setContratante({ ...contratante, colonia: e.target.value })}
+                />
+              )}
+            </div>
+            {(
+              [
+                ["municipio", "Municipio / alcaldía"],
+                ["estado", "Estado"],
+              ] as ["municipio" | "estado", string][]
+            ).map(([campo, label]) => (
+              <div key={campo}>
+                <label className={labelCls}>{label}</label>
+                <input
+                  className={`${inputCls} ${coloniasCp.length > 0 ? "bg-slate-50" : ""}`}
+                  value={contratante[campo]}
+                  maxLength={200}
+                  readOnly={coloniasCp.length > 0}
+                  disabled={bloqueada}
+                  onChange={(e) => setContratante({ ...contratante, [campo]: e.target.value })}
+                />
+              </div>
+            ))}
           </div>
+          {/^\d{5}$/.test(contratante.cp) && !ubicacion?.colonias.length && (
+            <p className="text-xs text-amber-700">
+              No encontramos las colonias de este código postal; captúralas a mano.
+            </p>
+          )}
           <div className="flex flex-wrap justify-between gap-2">
             <button type="button" onClick={() => setPaso(1)} className={btnSecundario}>
               Atrás
