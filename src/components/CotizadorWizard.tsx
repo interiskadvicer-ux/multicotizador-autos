@@ -470,6 +470,8 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                     colonia: "",
                     municipio: "",
                     estado: "",
+                    codigoMunicipio: "",
+                    codigoColonia: "",
                   })
                 }
               />
@@ -490,6 +492,8 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                       ...contratante,
                       colonia: e.target.value,
                       municipio: elegida?.municipio ?? contratante.municipio,
+                      codigoMunicipio: elegida?.codigoMunicipio ?? "",
+                      codigoColonia: elegida?.codigoColonia ?? "",
                     });
                   }}
                 >

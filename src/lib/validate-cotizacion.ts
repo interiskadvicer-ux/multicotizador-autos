@@ -40,6 +40,8 @@ export function parseDatosCotizacion(
         municipio: str(c.municipio),
         estado: str(c.estado),
         cp: str(c.cp, 5),
+        codigoMunicipio: str(c.codigoMunicipio, 5),
+        codigoColonia: str(c.codigoColonia, 5),
       }
     : null;
 

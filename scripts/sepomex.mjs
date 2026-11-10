@@ -71,9 +71,12 @@ const indice = (lista, valor) => {
 };
 const cps = {};
 for (const linea of lineas.slice(encabezado + 1)) {
-  const [cp, colonia, , municipio, estado] = linea.split("|");
+  const c = linea.split("|");
+  const [cp, colonia, , municipio, estado] = c;
   if (!/^\d{5}$/.test(cp ?? "") || !colonia) continue;
-  (cps[cp] ??= []).push([indice(estados, estado), indice(municipios, municipio), colonia]);
+  // c_mnpio e id_asenta_cpcons: códigos que Quálitas pide en la emisión
+  // (consideración 40, reglas 7 y 8).
+  (cps[cp] ??= []).push([indice(estados, estado), indice(municipios, municipio), colonia, c[11] ?? "", c[12] ?? ""]);
 }
 
 const base = process.env.DATABASE_PATH

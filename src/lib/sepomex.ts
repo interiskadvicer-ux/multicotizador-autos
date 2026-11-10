@@ -6,12 +6,15 @@ import { ESTADOS_QUALITAS, estadoDesdeCP } from "@/lib/qualitas/estados";
 interface Catalogo {
   estados: string[];
   municipios: string[];
-  cps: Record<string, [number, number, string][]>;
+  // [estado, municipio, colonia, código municipio, código colonia]
+  cps: Record<string, [number, number, string, string?, string?][]>;
 }
 
 export interface ColoniaCp {
   colonia: string;
   municipio: string;
+  codigoMunicipio?: string;
+  codigoColonia?: string;
 }
 
 export interface UbicacionCp {
@@ -44,7 +47,12 @@ export function ubicacionPorCp(cp: string): UbicacionCp | null {
   const filas = cat?.cps[cp];
   if (cat && filas?.length) {
     const colonias = filas
-      .map(([, m, colonia]) => ({ colonia, municipio: cat.municipios[m] }))
+      .map(([, m, colonia, codigoMunicipio, codigoColonia]) => ({
+        colonia,
+        municipio: cat.municipios[m],
+        codigoMunicipio: codigoMunicipio || undefined,
+        codigoColonia: codigoColonia || undefined,
+      }))
       .sort((a, b) => a.colonia.localeCompare(b.colonia, "es"));
     return {
       estado: cat.estados[filas[0][0]],

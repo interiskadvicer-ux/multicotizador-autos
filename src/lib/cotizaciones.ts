@@ -31,6 +31,9 @@ export interface Contratante {
   municipio: string;
   estado: string;
   cp: string;
+  // Códigos SEPOMEX del municipio y la colonia (emisión Quálitas).
+  codigoMunicipio?: string;
+  codigoColonia?: string;
 }
 
 export interface DetalleVehiculo {
