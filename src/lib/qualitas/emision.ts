@@ -148,7 +148,10 @@ export function construirXmlEmision(
       : c.nombre;
   const descuento = cot.request.descuentos?.qualitas ?? cfg.descuentoDefault;
   const hoy = new Date().toISOString().slice(0, 10);
-  const direccion = [c.calle, c.numExterior, c.numInterior].filter(Boolean).join(" ");
+  const calle = c.calle.trim();
+  const numExt = (c.numExterior ?? "").trim();
+  const calleTraeNumero = !!numExt && calle.toUpperCase().endsWith(` ${numExt.toUpperCase()}`);
+  const direccion = [calle, calleTraeNumero ? "" : numExt, c.numInterior].filter(Boolean).join(" ");
 
   return (
     '<?xml version="1.0" encoding="utf-8"?>' +

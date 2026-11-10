@@ -436,7 +436,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                 ["rfc", "RFC", ""],
                 ["email", "Correo", ""],
                 ["telefono", "Teléfono", ""],
-                ["calle", "Calle y número", "sm:col-span-2"],
+                ["calle", seleccion?.aseguradoraId === "qualitas" ? "Calle" : "Calle y número", "sm:col-span-2"],
               ] as [keyof Contratante, string, string][]
             ).map(([campo, label, cls]) => (
               <div key={campo} className={cls}>
