@@ -11,7 +11,7 @@ import { generalSeguros } from "./generalseguros";
 
 // Registro central de aseguradoras. Para agregar una nueva, crea su adaptador
 // y añádelo aquí.
-export const ADAPTERS: InsurerAdapter[] = [
+const TODAS: InsurerAdapter[] = [
   qualitas,
   banorte,
   hdi,
@@ -22,6 +22,15 @@ export const ADAPTERS: InsurerAdapter[] = [
   atlas,
   generalSeguros,
 ];
+
+// Aseguradoras que aún no cotizan en real y no deben mostrarse (ids separados
+// por coma). Se fija al compilar porque también la usan componentes cliente.
+const OCULTAS = (process.env.NEXT_PUBLIC_ASEGURADORAS_OCULTAS ?? "gnp,atlas")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+export const ADAPTERS = TODAS.filter((a) => !OCULTAS.includes(a.id));
 
 export const ASEGURADORAS = ADAPTERS.map((a) => ({
   id: a.id,
