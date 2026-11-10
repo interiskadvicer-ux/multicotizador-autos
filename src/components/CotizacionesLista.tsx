@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import type { EstadoCotizacion, ResumenCotizacion } from "@/lib/cotizaciones";
 import { formatMXN } from "@/lib/format";
+import type { LigasImpresion } from "@/lib/qualitas/impresion";
 
 const ESTADO_META: Record<EstadoCotizacion, { label: string; cls: string }> = {
   GUARDADA: { label: "Guardada", cls: "bg-slate-100 text-slate-700" },
@@ -100,16 +101,12 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
       setError(data.error ?? "Quálitas no emitió la póliza.");
       return;
     }
-    const imp = data.impresion as { poliza: string | null; recibo: string | null; textos: string | null } | null;
+    const imp = data.impresion as LigasImpresion | null;
     setAviso({
-      texto: `Quálitas emitió la póliza ${data.resultado.numeroPoliza} (ambiente ${data.resultado.ambiente}).`,
-      ligas: (
-        [
-          ["Póliza", imp?.poliza],
-          ["Recibo", imp?.recibo],
-          ["Anexos", imp?.textos],
-        ] as [string, string | null | undefined][]
-      ).filter((x): x is [string, string] => Boolean(x[1])),
+      texto: `Quálitas emitió la póliza ${data.resultado.numeroPoliza} (ambiente ${data.resultado.ambiente}).${
+        imp?.mensaje ? ` Impresión: ${imp.mensaje}` : ""
+      }`,
+      ligas: (imp?.documentos ?? []).map((d) => [d.etiqueta, d.url] as [string, string]),
     });
     setEmision(null);
     cargar();

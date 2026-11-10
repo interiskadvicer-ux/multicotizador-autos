@@ -13,6 +13,7 @@ import {
 } from "./cotizacion";
 import { escapeXml, extractAttr, extractTag, soapCall, unescapeXml } from "./soap";
 import { interpretarError } from "./errores";
+import { polizaParaImpresion } from "./impresion";
 import { estadoDesdeCP } from "./estados";
 
 const SOAP_ACTION = "http://qualitas.com.mx/obtenerNuevaEmision";
@@ -148,10 +149,11 @@ export function construirXmlEmision(
       : c.nombre;
   const descuento = cot.request.descuentos?.qualitas ?? cfg.descuentoDefault;
   const hoy = new Date().toISOString().slice(0, 10);
+  // Quálitas arma el domicilio con la calle y los números de las reglas 1 y 2.
   const calle = c.calle.trim();
   const numExt = (c.numExterior ?? "").trim();
   const calleTraeNumero = !!numExt && calle.toUpperCase().endsWith(` ${numExt.toUpperCase()}`);
-  const direccion = [calle, calleTraeNumero ? "" : numExt, c.numInterior].filter(Boolean).join(" ");
+  const direccion = calleTraeNumero ? calle.slice(0, -numExt.length).trim() : calle;
 
   return (
     '<?xml version="1.0" encoding="utf-8"?>' +
@@ -255,7 +257,8 @@ export async function emitirQualitas(
     if (!/^0*288\b/.test((extractTag(movimiento, "CodigoError") || "").trim())) break;
   }
   const error = interpretarError(extractTag(movimiento, "CodigoError"));
-  const numeroPoliza = (extractAttr(movimiento, "NoPoliza") || "").trim();
+  const noPoliza = (extractAttr(movimiento, "NoPoliza") || "").trim();
+  const numeroPoliza = noPoliza ? polizaParaImpresion(noPoliza) : "";
   if (error || !numeroPoliza) {
     return { ok: false, ambiente, error: error ?? "Quálitas no regresó número de póliza." };
   }
