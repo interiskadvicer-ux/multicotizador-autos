@@ -19,6 +19,7 @@ import type {
 import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
 import type { UbicacionCp } from "@/lib/sepomex";
+import DatosArt492 from "@/components/DatosArt492";
 
 const PASOS = ["Datos y coberturas", "Comparativo", "Contratante", "Vehículo", "Resumen"];
 
@@ -537,6 +538,9 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
               </div>
             ))}
           </div>
+          {seleccion?.aseguradoraId === "qualitas" && (
+            <DatosArt492 contratante={contratante} onChange={setContratante} disabled={bloqueada} />
+          )}
           {/^\d{5}$/.test(contratante.cp) && !ubicacion?.colonias.length && (
             <p className="text-xs text-amber-700">
               No encontramos las colonias de este código postal; captúralas a mano.

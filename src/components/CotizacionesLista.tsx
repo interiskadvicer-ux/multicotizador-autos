@@ -24,6 +24,7 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
     vigenciaInicio: string;
   } | null>(null);
   const [emitiendo, setEmitiendo] = useState(false);
+  const [aviso, setAviso] = useState<{ texto: string; ligas: [string, string][] } | null>(null);
 
   async function cargar() {
     setCargando(true);
@@ -82,6 +83,38 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
     cargar();
   }
 
+  async function emitirEnQualitas(c: ResumenCotizacion) {
+    if (!emision) return;
+    if (!window.confirm(`¿Emitir la cotización #${c.id} en Quálitas?`)) return;
+    setEmitiendo(true);
+    setError(null);
+    setAviso(null);
+    const res = await fetch(`/api/cotizaciones/${c.id}/emitir-qualitas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vigenciaInicio: emision.vigenciaInicio }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setEmitiendo(false);
+    if (!res.ok) {
+      setError(data.error ?? "Quálitas no emitió la póliza.");
+      return;
+    }
+    const imp = data.impresion as { poliza: string | null; recibo: string | null; textos: string | null } | null;
+    setAviso({
+      texto: `Quálitas emitió la póliza ${data.resultado.numeroPoliza} (ambiente ${data.resultado.ambiente}).`,
+      ligas: (
+        [
+          ["Póliza", imp?.poliza],
+          ["Recibo", imp?.recibo],
+          ["Anexos", imp?.textos],
+        ] as [string, string | null | undefined][]
+      ).filter((x): x is [string, string] => Boolean(x[1])),
+    });
+    setEmision(null);
+    cargar();
+  }
+
   const q = busqueda.trim().toLowerCase();
   const visibles = cotizaciones.filter(
     (c) =>
@@ -127,6 +160,16 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
         </div>
       </div>
 
+      {aviso && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          {aviso.texto}
+          {aviso.ligas.map(([label, url]) => (
+            <a key={label} href={url} target="_blank" rel="noopener noreferrer" className="ml-3 font-semibold underline">
+              {label} (PDF)
+            </a>
+          ))}
+        </div>
+      )}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
@@ -256,6 +299,16 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                           >
                             {emitiendo ? "Registrando…" : "Confirmar emisión"}
                           </button>
+                          {c.seleccion?.aseguradoraId === "qualitas" && (
+                            <button
+                              type="button"
+                              disabled={emitiendo}
+                              onClick={() => emitirEnQualitas(c)}
+                              className="rounded-lg border border-emerald-600 px-4 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              {emitiendo ? "Emitiendo…" : "Emitir en Quálitas"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setEmision(null)}
