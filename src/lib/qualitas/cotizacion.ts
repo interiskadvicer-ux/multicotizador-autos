@@ -17,10 +17,10 @@ import { estadoDesdeCP } from "./estados";
 const SOAP_ACTION = "http://qualitas.com.mx/obtenerNuevaEmision";
 const NS = "http://qualitas.com.mx/";
 
-const USOS_VEHICULO = ["01", "05"] as const;
+export const USOS_VEHICULO = ["01", "05"] as const;
 
 // Paquete del multicotizador -> código de paquete Quálitas (Anexo 5).
-const PAQUETE_A_QUALITAS: Record<Paquete, string> = {
+export const PAQUETE_A_QUALITAS: Record<Paquete, string> = {
   AMPLIA: "01",
   LIMITADA: "03",
   RC: "04",
@@ -142,7 +142,7 @@ const COBERTURAS_POR_PAQUETE: Record<Paquete, string[]> = {
   RC: ["4", "5", "6", "7", "11", "14", "22", "47"],
 };
 
-function xmlCoberturasNegocio(request: CotizacionRequest): string {
+export function xmlCoberturasNegocio(request: CotizacionRequest): string {
   const cob = request.coberturasPersonalizadas ?? {};
   const valores: Record<string, [number, string, number]> = {
     "1": [0, "0", cob.deducibleDanosMateriales ?? 20],

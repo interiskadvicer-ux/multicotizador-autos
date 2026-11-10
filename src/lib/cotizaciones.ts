@@ -34,6 +34,25 @@ export interface Contratante {
   // Códigos SEPOMEX del municipio y la colonia (emisión Quálitas).
   codigoMunicipio?: string;
   codigoColonia?: string;
+  // Identificación del cliente (art. 492) que pide Quálitas para emitir.
+  nombres?: string;
+  apellidoPaterno?: string;
+  apellidoMaterno?: string;
+  numExterior?: string;
+  numInterior?: string;
+  fechaNacimiento?: string; // aaaa-mm-dd
+  genero?: "" | "H" | "M";
+  nacionalidad?: "" | "1" | "2";
+  entidadNacimiento?: string;
+  ocupacion?: string;
+  giro?: string;
+  curp?: string;
+  tipoIdentificacion?: string;
+  numeroIdentificacion?: string;
+  pep?: "" | "N" | "S";
+  pepNombre?: string;
+  pepParentesco?: string;
+  celular?: string;
 }
 
 export interface DetalleVehiculo {

@@ -6,7 +6,7 @@
 export type Ambiente = "pruebas" | "produccion";
 
 // Endpoints del web service de cotización/emisión (obtenerNuevaEmision).
-const WS_EMISION_URL: Record<Ambiente, string> = {
+export const WS_EMISION_URL: Record<Ambiente, string> = {
   pruebas: "https://qa.qualitas.com.mx:8443/WsEmision/WsEmision.asmx",
   produccion: "http://sio.qualitas.com.mx/WsEmision/WsEmision.asmx",
 };
