@@ -20,6 +20,7 @@ import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
 import type { UbicacionCp } from "@/lib/sepomex";
 import DatosArt492 from "@/components/DatosArt492";
+import DatosGs from "@/components/DatosGs";
 
 const PASOS = ["Datos y coberturas", "Comparativo", "Contratante", "Vehículo", "Resumen"];
 
@@ -436,7 +437,13 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                 ["rfc", "RFC", ""],
                 ["email", "Correo", ""],
                 ["telefono", "Teléfono", ""],
-                ["calle", seleccion?.aseguradoraId === "qualitas" ? "Calle" : "Calle y número", "sm:col-span-2"],
+                [
+                  "calle",
+                  seleccion?.aseguradoraId === "qualitas" || seleccion?.aseguradoraId === "generalseguros"
+                    ? "Calle"
+                    : "Calle y número",
+                  "sm:col-span-2",
+                ],
               ] as [keyof Contratante, string, string][]
             ).map(([campo, label, cls]) => (
               <div key={campo} className={cls}>
@@ -473,6 +480,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                     estado: "",
                     codigoMunicipio: "",
                     codigoColonia: "",
+                    gsColonia: "",
                   })
                 }
               />
@@ -495,6 +503,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
                       municipio: elegida?.municipio ?? contratante.municipio,
                       codigoMunicipio: elegida?.codigoMunicipio ?? "",
                       codigoColonia: elegida?.codigoColonia ?? "",
+                      gsColonia: "",
                     });
                   }}
                 >
@@ -540,6 +549,9 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
           </div>
           {seleccion?.aseguradoraId === "qualitas" && (
             <DatosArt492 contratante={contratante} onChange={setContratante} disabled={bloqueada} />
+          )}
+          {seleccion?.aseguradoraId === "generalseguros" && (
+            <DatosGs contratante={contratante} onChange={setContratante} disabled={bloqueada} />
           )}
           {/^\d{5}$/.test(contratante.cp) && !ubicacion?.colonias.length && (
             <p className="text-xs text-amber-700">

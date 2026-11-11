@@ -53,6 +53,11 @@ export interface Contratante {
   pepNombre?: string;
   pepParentesco?: string;
   celular?: string;
+  // Claves de CatalogosWS de General de Seguros para emitir.
+  gsEstadoCivil?: string;
+  gsOcupacion?: string;
+  gsGiro?: string;
+  gsColonia?: string;
 }
 
 export interface DetalleVehiculo {
@@ -287,6 +292,7 @@ export function emitirCotizacion(
   vigenciaInicio: string,
   notasAdmin: string | null,
   adminId: number,
+  caratula: string | null = null,
 ): number {
   const elegido = cot.seleccion
     ? cot.resultados.find(
@@ -322,6 +328,7 @@ export function emitirCotizacion(
               ? "ANUAL"
               : cot.request.formaPago,
           agenteId: dueno?.rol === "AGENTE" ? cot.usuarioId : null,
+          caratula,
         },
         adminId,
       ).id;

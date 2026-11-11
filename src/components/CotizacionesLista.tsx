@@ -112,6 +112,45 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
     cargar();
   }
 
+  async function emitirEnGs(c: ResumenCotizacion) {
+    if (!emision) return;
+    const previa = await fetch(`/api/cotizaciones/${c.id}/emitir-gs`).then((r) => r.json()).catch(() => null);
+    if (previa?.faltantes?.length) {
+      setError(`Faltan datos para emitir en General de Seguros: ${previa.faltantes.join(", ")}.`);
+      return;
+    }
+    if (
+      !window.confirm(
+        `¿Emitir la cotización #${c.id} en General de Seguros (ambiente ${previa?.ambiente ?? "pruebas"})? Puede tardar hasta 3 minutos.`,
+      )
+    )
+      return;
+    setEmitiendo(true);
+    setError(null);
+    setAviso(null);
+    const res = await fetch(`/api/cotizaciones/${c.id}/emitir-gs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vigenciaInicio: emision.vigenciaInicio }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setEmitiendo(false);
+    if (!res.ok) {
+      setError(data.error ?? "General de Seguros no emitió la póliza.");
+      return;
+    }
+    setAviso({
+      texto: `General de Seguros emitió la póliza ${data.resultado.numeroPoliza} (ambiente ${data.resultado.ambiente}).${
+        data.resultado.caratulaGuardada ? " La carátula quedó guardada en Pólizas." : ""
+      }`,
+      ligas: ((data.documentos ?? []) as { etiqueta: string; url: string }[]).map(
+        (d) => [d.etiqueta, d.url] as [string, string],
+      ),
+    });
+    setEmision(null);
+    cargar();
+  }
+
   const q = busqueda.trim().toLowerCase();
   const visibles = cotizaciones.filter(
     (c) =>
@@ -304,6 +343,16 @@ export default function CotizacionesLista({ esAdmin }: { esAdmin: boolean }) {
                               className="rounded-lg border border-emerald-600 px-4 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                             >
                               {emitiendo ? "Emitiendo…" : "Emitir en Quálitas"}
+                            </button>
+                          )}
+                          {c.seleccion?.aseguradoraId === "generalseguros" && (
+                            <button
+                              type="button"
+                              disabled={emitiendo}
+                              onClick={() => emitirEnGs(c)}
+                              className="rounded-lg border border-emerald-600 px-4 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              {emitiendo ? "Emitiendo (hasta 3 min)…" : "Emitir en General de Seguros"}
                             </button>
                           )}
                           <button

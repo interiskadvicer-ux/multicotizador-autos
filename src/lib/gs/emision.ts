@@ -4,9 +4,11 @@
 // devuelve el servicio.
 
 import type { CotizacionRequest } from "@/domain/types";
+import type { CotizacionGuardada } from "@/lib/cotizaciones";
 import { escapeXml } from "@/lib/qualitas/soap";
 import { GsError, bloques, llamarGs, valor, xmlCampos } from "./client";
 import { FORMA_PAGO_GS, PAQUETE_GS, generarCotizacion } from "./cotizacion";
+import { type AmbienteGs, ambienteEmisionGs, getGsConfig, getGsConfigEmision } from "./config";
 
 export interface ClienteGs {
   nombre: string;
@@ -42,6 +44,7 @@ export interface DocumentoGs {
 }
 
 export interface PolizaGs {
+  ambiente: AmbienteGs;
   poliza: string;
   sucursal: string;
   ramo: string;
@@ -143,7 +146,8 @@ export async function emitirGs(
   e: EmisionGs,
 ): Promise<PolizaGs> {
   validar(e);
-  const cotizacion = await generarCotizacion(request, claveGs, descuento);
+  const cfg = getGsConfigEmision();
+  const cotizacion = await generarCotizacion(request, claveGs, descuento, cfg);
   const paquete = cotizacion.paquetes.find((p) =>
     PAQUETE_GS[request.paquete].test(p.nombre),
   );
@@ -176,9 +180,10 @@ export async function emitirGs(
         ["idFormaPago", forma.id],
         ["idPaquete", paquete.id],
         ...(e.inicioVigencia
-          ? ([["inicioVigencia", e.inicioVigencia]] as Array<[string, string]>)
+          ? ([["inicioVigencia", `${e.inicioVigencia}T00:00:00`]] as Array<[string, string]>)
           : []),
       ]),
+    cfg,
   );
 
   // <poliza> anida otro <poliza> con el consecutivo.
@@ -195,6 +200,7 @@ export async function emitirGs(
     }),
   );
   return {
+    ambiente: ambienteEmisionGs(),
     poliza: numero,
     sucursal: valor(xml, "sucursal"),
     ramo: valor(xml, "ramo"),
@@ -203,4 +209,75 @@ export async function emitirGs(
     primaTotal: Math.round(forma.primaTotal * 100) / 100,
     documentos,
   };
+}
+
+// Datos que General de Seguros exige para emitir; los catálogos (estado civil,
+// ocupación, giro y colonia) son los de su CatalogosWS.
+export function faltantesEmisionGs(cot: CotizacionGuardada): string[] {
+  const c = cot.contratante;
+  const v = cot.detalleVehiculo;
+  const faltan: string[] = [];
+  const req = (ok: unknown, campo: string) => !ok && faltan.push(campo);
+  req(cot.request?.vehiculo?.claveGs, "clave del vehículo de General de Seguros");
+  req(c, "contratante");
+  if (!c) return faltan;
+  if (c.tipoPersona !== "FISICA") faltan.push("persona física (la emisión de persona moral no está habilitada)");
+  req(c.nombres, "nombre(s)");
+  req(c.apellidoPaterno, "apellido paterno");
+  req(/^\d{4}-\d{2}-\d{2}$/.test(c.fechaNacimiento ?? ""), "fecha de nacimiento");
+  req(c.genero, "género");
+  req(c.gsEstadoCivil, "estado civil");
+  req(c.gsOcupacion, "ocupación");
+  req(c.gsGiro, "giro o actividad");
+  req(c.rfc, "RFC");
+  req(c.calle, "calle");
+  req(c.numExterior, "número exterior");
+  req(c.gsColonia, "colonia del catálogo de General de Seguros");
+  req(c.telefono || c.celular, "teléfono o celular");
+  req(c.email, "correo");
+  req(v?.serie, "número de serie");
+  return faltan;
+}
+
+function clienteDesdeCotizacion(cot: CotizacionGuardada): ClienteGs {
+  const c = cot.contratante!;
+  const calle = c.calle.trim();
+  const numExt = (c.numExterior ?? "").trim();
+  const calleTraeNumero = !!numExt && calle.toUpperCase().endsWith(` ${numExt.toUpperCase()}`);
+  return {
+    nombre: c.nombres!.trim(),
+    apellidoPaterno: c.apellidoPaterno!.trim(),
+    apellidoMaterno: c.apellidoMaterno?.trim(),
+    rfc: c.rfc.trim(),
+    curp: c.curp?.trim(),
+    sexo: c.genero === "M" ? "F" : "M",
+    estadoCivil: Number(c.gsEstadoCivil),
+    ocupacion: Number(c.gsOcupacion),
+    giro: Number(c.gsGiro),
+    fechaNacimiento: c.fechaNacimiento!,
+    calle: calleTraeNumero ? calle.slice(0, -numExt.length).trim() : calle,
+    numeroExterior: numExt,
+    cp: c.cp,
+    colonia: c.gsColonia!,
+    telefono: (c.telefono || c.celular || "").replace(/\D/g, ""),
+    email: c.email.trim(),
+  };
+}
+
+export async function emitirCotizacionGs(
+  cot: CotizacionGuardada,
+  inicioVigencia: string,
+): Promise<PolizaGs> {
+  const faltan = faltantesEmisionGs(cot);
+  if (faltan.length) {
+    throw new GsError(`Faltan datos para emitir en General de Seguros: ${faltan.join(", ")}.`);
+  }
+  const v = cot.detalleVehiculo!;
+  const request = { ...cot.request, paquete: cot.seleccion?.paquete ?? cot.request.paquete };
+  const descuento = cot.request.descuentos?.generalseguros ?? getGsConfig().descuentoDefault;
+  return emitirGs(request, cot.request.vehiculo.claveGs!.trim(), descuento, {
+    cliente: clienteDesdeCotizacion(cot),
+    unidad: { numeroSerie: v.serie, numeroMotor: v.motor, placas: v.placas },
+    inicioVigencia,
+  });
 }

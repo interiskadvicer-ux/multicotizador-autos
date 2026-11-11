@@ -12,7 +12,7 @@ import type {
   Paquete,
 } from "@/domain/types";
 import { ETIQUETA_COBERTURA } from "@/lib/coberturas";
-import { credencialesConfiguradas, getGsConfig } from "./config";
+import { type GsConfig, credencialesConfiguradas, getGsConfig } from "./config";
 import {
   type Campos,
   GsError,
@@ -156,9 +156,10 @@ export async function generarCotizacion(
   request: CotizacionRequest,
   claveGs: string,
   descuento: number,
+  cfg: GsConfig = getGsConfig(),
 ): Promise<CotizacionGs> {
   const { vehiculo, conductor } = request;
-  const { idNegocio } = getGsConfig();
+  const { idNegocio } = cfg;
   const inciso =
     "<inciso>" +
     xmlCampos([
@@ -189,6 +190,7 @@ export async function generarCotizacion(
       ["vigencia", "ANUAL"],
     ],
     inciso,
+    cfg,
   );
   const idCotizacion = valor(xml, "idCotizacion");
   if (!idCotizacion || idCotizacion === "0") {

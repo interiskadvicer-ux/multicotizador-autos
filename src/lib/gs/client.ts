@@ -12,7 +12,9 @@ export class GsError extends Error {}
 
 export class GsNoConfigurado extends Error {
   constructor() {
-    super("Faltan las credenciales de General de Seguros. Configura GS_WS_USER y GS_WS_PASS.");
+    super(
+      "Faltan las credenciales de General de Seguros: GS_WS_USER y GS_WS_PASS para cotizar, GS_PRUEBAS_WS_USER y GS_PRUEBAS_WS_PASS para emitir en pruebas.",
+    );
   }
 }
 
@@ -83,10 +85,13 @@ function verificarExito(xml: string): string {
   return xml;
 }
 
-let tokenCache: { token: string; expira: number } | undefined;
+// Un token por host y usuario (cotización en producción, emisión en pruebas).
+const tokens = new Map<string, { token: string; expira: number }>();
 
 async function obtenerToken(cfg: GsConfig): Promise<string> {
-  if (tokenCache && tokenCache.expira > Date.now()) return tokenCache.token;
+  const clave = `${cfg.baseUrl}|${cfg.usuario}`;
+  const vigente = tokens.get(clave);
+  if (vigente && vigente.expira > Date.now()) return vigente.token;
   const xml = verificarExito(
     await post(
       cfg,
@@ -101,7 +106,7 @@ async function obtenerToken(cfg: GsConfig): Promise<string> {
   );
   const token = valor(xml, "token");
   if (!token) throw new GsError("General de Seguros no devolvió token de sesión.");
-  tokenCache = { token, expira: Date.now() + TOKEN_TTL_MS };
+  tokens.set(clave, { token, expira: Date.now() + TOKEN_TTL_MS });
   return token;
 }
 
@@ -113,8 +118,8 @@ export async function llamarGs(
   operacion: string,
   campos: Campos,
   extra = "",
+  cfg: GsConfig = getGsConfig(),
 ): Promise<string> {
-  const cfg = getGsConfig();
   if (!credencialesConfiguradas(cfg)) throw new GsNoConfigurado();
   const token = await obtenerToken(cfg);
   const xml = await post(
@@ -125,7 +130,7 @@ export async function llamarGs(
     xmlCampos([["token", token], ...campos]) + extra,
   );
   if (valor(xml, "exito") !== "true" && /token|sesi[oó]n/i.test(valor(xml, "mensaje"))) {
-    tokenCache = undefined;
+    tokens.delete(`${cfg.baseUrl}|${cfg.usuario}`);
   }
   return verificarExito(xml);
 }
