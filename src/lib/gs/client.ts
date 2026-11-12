@@ -86,27 +86,33 @@ function verificarExito(xml: string): string {
 }
 
 // Un token por host y usuario (cotización en producción, emisión en pruebas).
-const tokens = new Map<string, { token: string; expira: number }>();
+// GS invalida el token anterior al emitir uno nuevo, así que las consultas en
+// paralelo comparten la misma solicitud de token.
+const tokens = new Map<string, { token: Promise<string>; expira: number }>();
 
-async function obtenerToken(cfg: GsConfig): Promise<string> {
+function obtenerToken(cfg: GsConfig): Promise<string> {
   const clave = `${cfg.baseUrl}|${cfg.usuario}`;
   const vigente = tokens.get(clave);
   if (vigente && vigente.expira > Date.now()) return vigente.token;
-  const xml = verificarExito(
-    await post(
-      cfg,
-      "autenticacionWS",
-      "autenticacion",
-      "obtenerToken",
-      xmlCampos([
-        ["usuario", cfg.usuario],
-        ["password", cfg.password],
-      ]),
-    ),
-  );
-  const token = valor(xml, "token");
-  if (!token) throw new GsError("General de Seguros no devolvió token de sesión.");
-  tokens.set(clave, { token, expira: Date.now() + TOKEN_TTL_MS });
+  const token = post(
+    cfg,
+    "autenticacionWS",
+    "autenticacion",
+    "obtenerToken",
+    xmlCampos([
+      ["usuario", cfg.usuario],
+      ["password", cfg.password],
+    ]),
+  ).then((xml) => {
+    const t = valor(verificarExito(xml), "token");
+    if (!t) throw new GsError("General de Seguros no devolvió token de sesión.");
+    return t;
+  });
+  const entrada = { token, expira: Date.now() + TOKEN_TTL_MS };
+  tokens.set(clave, entrada);
+  token.catch(() => {
+    if (tokens.get(clave) === entrada) tokens.delete(clave);
+  });
   return token;
 }
 
