@@ -1,6 +1,7 @@
 // Catálogo vehicular de HDI en cascada: marcas → tipos (submarcas) →
-// versiones → transmisiones → información del vehículo (idVehiculo). Se
-// recorren automóviles residentes y pick ups.
+// versiones → transmisiones. HDI no garantiza ObtenerInformacionVehiculo, así
+// que el vehículo viaja por marca, tipo, versión y transmisión, con
+// idVehiculo vacío. Se recorren automóviles residentes y pick ups.
 
 import { getHdiConfig } from "./config";
 import { bloques, llamarHdi, valor, xmlCampos, type Campos } from "./client";
@@ -13,7 +14,7 @@ const MAX_VERSIONES = 40;
 const CONCURRENCIA = 5;
 
 export interface VehiculoHdi {
-  // `${tipoVehiculo}-${idVehiculo}`, p. ej. 4579-2389654.
+  // `${tipoVehiculo}|${idMarca}|${idTipo}|${idVersion}|${idTransmision}`.
   claveHdi: string;
   tipoVehiculo: number;
   marca: string;
@@ -30,7 +31,10 @@ export interface BusquedaVehiculoHdi {
 
 export interface ClaveHdi {
   tipoVehiculo: number;
-  idVehiculo: string;
+  idMarca: string;
+  idTipo: string;
+  idVersion: string;
+  idTransmision: string;
 }
 
 interface Entrada {
@@ -39,20 +43,41 @@ interface Entrada {
 }
 
 export function formatearClaveHdi(clave: ClaveHdi): string {
-  return `${clave.tipoVehiculo}-${clave.idVehiculo}`;
+  return [
+    clave.tipoVehiculo,
+    clave.idMarca,
+    clave.idTipo,
+    clave.idVersion,
+    clave.idTransmision,
+  ].join("|");
 }
 
-// "4579-2389654" → { tipoVehiculo: 4579, idVehiculo: "2389654" }. Sin
-// prefijo se asume automóvil residente.
+// "4579|3514|MX-5|35 ANIVERSARIO|3800" → { tipoVehiculo: 4579, idMarca:
+// "3514", idTipo: "MX-5", ... }. Tipo y versión de HDI son texto, por eso el
+// separador es "|". Se acepta el formato anterior "4579-2389654|..." pero
+// se descarta el idVehiculo.
 export function parsearClaveHdi(clave: string): ClaveHdi | undefined {
-  const m = /^(?:(\d+)-)?(\d+)$/.exec(clave.trim());
-  if (!m) return undefined;
-  return { tipoVehiculo: m[1] ? Number(m[1]) : TIPO_VEHICULO_AUTO, idVehiculo: m[2] };
+  const partes = clave.split("|").map((x) => x.trim());
+  if (partes.length !== 5) return undefined;
+  const [tipo, idMarca, idTipo, idVersion, idTransmision] = partes;
+  const m = /^(\d+)(?:-\d+)?$/.exec(tipo);
+  if (!m || !/^\d+$/.test(idMarca) || !idTipo || !idVersion) return undefined;
+  if (!/^\d+$/.test(idTransmision)) return undefined;
+  return {
+    tipoVehiculo: Number(m[1]),
+    idMarca,
+    idTipo,
+    idVersion,
+    idTransmision,
+  };
 }
 
 const cache = new Map<string, { expira: number; valor: Promise<Entrada[]> }>();
 
-function conCache(clave: string, cargar: () => Promise<Entrada[]>): Promise<Entrada[]> {
+function conCache(
+  clave: string,
+  cargar: () => Promise<Entrada[]>,
+): Promise<Entrada[]> {
   const hit = cache.get(clave);
   if (hit && hit.expira > Date.now()) return hit.valor;
   const promesa = cargar();
@@ -61,10 +86,15 @@ function conCache(clave: string, cargar: () => Promise<Entrada[]>): Promise<Entr
   return promesa;
 }
 
-async function enLotes<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+async function enLotes<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
   const resultados: R[] = [];
   for (let i = 0; i < items.length; i += CONCURRENCIA) {
-    resultados.push(...(await Promise.all(items.slice(i, i + CONCURRENCIA).map(fn))));
+    resultados.push(
+      ...(await Promise.all(items.slice(i, i + CONCURRENCIA).map(fn))),
+    );
   }
   return resultados;
 }
@@ -79,7 +109,10 @@ function soloAlfanumerico(nombre: string): string {
 
 // Coincidencia exacta alfanumérica ("Mazda 2" ↔ "MAZDA2"); si no hay, el
 // nombre de catálogo más corto que sea prefijo del buscado o lo contenga.
-function buscarEquivalente(entradas: Entrada[], buscado: string): Entrada | undefined {
+function buscarEquivalente(
+  entradas: Entrada[],
+  buscado: string,
+): Entrada | undefined {
   const objetivo = soloAlfanumerico(buscado);
   const exacta = entradas.find((e) => soloAlfanumerico(e.nombre) === objetivo);
   if (exacta) return exacta;
@@ -88,7 +121,10 @@ function buscarEquivalente(entradas: Entrada[], buscado: string): Entrada | unde
       const n = soloAlfanumerico(e.nombre);
       return n && (objetivo.startsWith(n) || n.startsWith(objetivo));
     })
-    .sort((a, b) => soloAlfanumerico(a.nombre).length - soloAlfanumerico(b.nombre).length)[0];
+    .sort(
+      (a, b) =>
+        soloAlfanumerico(a.nombre).length - soloAlfanumerico(b.nombre).length,
+    )[0];
 }
 
 function entradas(xml: string, item: string): Entrada[] {
@@ -97,8 +133,15 @@ function entradas(xml: string, item: string): Entrada[] {
     .filter((e) => e.id && e.id !== "0" && e.nombre);
 }
 
-function consulta(accion: string, request: string, campos: Campos): Promise<string> {
-  return llamarHdi(accion, `<pub:${request}>${xmlCampos(campos)}</pub:${request}>`);
+function consulta(
+  accion: string,
+  request: string,
+  campos: Campos,
+): Promise<string> {
+  return llamarHdi(
+    accion,
+    `<pub:${request}>${xmlCampos(campos)}</pub:${request}>`,
+  );
 }
 
 function marcas(tipo: number, anio: number): Promise<Entrada[]> {
@@ -115,7 +158,11 @@ function marcas(tipo: number, anio: number): Promise<Entrada[]> {
   );
 }
 
-function tipos(tipo: number, anio: number, idMarca: string): Promise<Entrada[]> {
+function tipos(
+  tipo: number,
+  anio: number,
+  idMarca: string,
+): Promise<Entrada[]> {
   return conCache(`tipos:${tipo}:${anio}:${idMarca}`, async () =>
     entradas(
       await consulta("ObtenerTipos", "ObtenerTiposRequest", [
@@ -166,72 +213,69 @@ async function transmisiones(
   );
 }
 
-async function idVehiculo(
-  tipo: number,
-  anio: number,
-  idMarca: string,
-  idTipo: string,
-  idVersion: string,
-  idTransmision: string,
-): Promise<string> {
-  const xml = await consulta("ObtenerInformacionVehiculo", "ObtenerInformacionVehiculoRequest", [
-    ["IdMarca", idMarca],
-    ["IdTipo", idTipo],
-    ["IdTipoVehiculo", tipo],
-    ["IdVersion", idVersion],
-    ["idModelo", anio],
-    ["idTransmision", idTransmision],
-  ]);
-  return valor(xml, "idVehiculo");
-}
-
 async function buscarPorTipo(
   tipo: number,
   filtros: BusquedaVehiculoHdi,
 ): Promise<VehiculoHdi[]> {
-  const marca = buscarEquivalente(await marcas(tipo, filtros.anio), filtros.marca);
+  const marca = buscarEquivalente(
+    await marcas(tipo, filtros.anio),
+    filtros.marca,
+  );
   if (!marca) return [];
   const lista = await tipos(tipo, filtros.anio, marca.id);
   const elegidos = filtros.submarca
-    ? [buscarEquivalente(lista, filtros.submarca)].filter((s): s is Entrada => Boolean(s))
+    ? [buscarEquivalente(lista, filtros.submarca)].filter((s): s is Entrada =>
+        Boolean(s),
+      )
     : lista;
 
-  const combinaciones: Array<{ sub: Entrada; version: Entrada; transmision: Entrada }> = [];
+  const combinaciones: Array<{
+    sub: Entrada;
+    version: Entrada;
+    transmision: Entrada;
+  }> = [];
   for (const sub of elegidos) {
-    const vers = (await versiones(tipo, filtros.anio, marca.id, sub.id)).slice(0, MAX_VERSIONES);
+    const vers = (await versiones(tipo, filtros.anio, marca.id, sub.id)).slice(
+      0,
+      MAX_VERSIONES,
+    );
     const porVersion = await enLotes(vers, async (version) => ({
       version,
-      trans: await transmisiones(tipo, filtros.anio, marca.id, sub.id, version.id),
+      trans: await transmisiones(
+        tipo,
+        filtros.anio,
+        marca.id,
+        sub.id,
+        version.id,
+      ),
     }));
     for (const { version, trans } of porVersion) {
-      for (const transmision of trans) combinaciones.push({ sub, version, transmision });
+      for (const transmision of trans)
+        combinaciones.push({ sub, version, transmision });
     }
   }
 
-  const vehiculos = await enLotes(combinaciones, async ({ sub, version, transmision }) => {
-    const id = await idVehiculo(
-      tipo,
-      filtros.anio,
-      marca.id,
-      sub.id,
-      version.id,
-      transmision.id,
-    );
-    return id && id !== "0"
-      ? {
-          claveHdi: formatearClaveHdi({ tipoVehiculo: tipo, idVehiculo: id }),
-          tipoVehiculo: tipo,
-          marca: marca.nombre,
-          submarca: sub.nombre,
-          anio: filtros.anio,
-          descripcion: `${version.nombre} ${transmision.nombre}`,
-        }
-      : undefined;
-  });
-  return vehiculos.filter((v): v is VehiculoHdi => Boolean(v));
+  return combinaciones.map(({ sub, version, transmision }) => ({
+    claveHdi: formatearClaveHdi({
+      tipoVehiculo: tipo,
+      idMarca: marca.id,
+      idTipo: sub.id,
+      idVersion: version.id,
+      idTransmision: transmision.id,
+    }),
+    tipoVehiculo: tipo,
+    marca: marca.nombre,
+    submarca: sub.nombre,
+    anio: filtros.anio,
+    descripcion: `${version.nombre} ${transmision.nombre}`,
+  }));
 }
 
-export async function buscarVehiculos(filtros: BusquedaVehiculoHdi): Promise<VehiculoHdi[]> {
-  const porTipo = await Promise.all(TIPOS_VEHICULO.map((t) => buscarPorTipo(t, filtros)));
+export async function buscarVehiculos(
+  filtros: BusquedaVehiculoHdi,
+): Promise<VehiculoHdi[]> {
+  const porTipo = await Promise.all(
+    TIPOS_VEHICULO.map((t) => buscarPorTipo(t, filtros)),
+  );
   return porTipo.flat();
 }

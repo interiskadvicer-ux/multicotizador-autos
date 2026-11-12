@@ -1,9 +1,8 @@
 // Cotización real de HDI (ObtenerPaquetes, tarifa tradicional).
-// Flujo: se calcula el paquete con sus coberturas por defecto; si el broker
-// pidió descuento o coberturas personalizadas se recalcula enviando el
-// paquete en `paquetesConCambios` con el ajuste (descuento) y las sumas y
-// deducibles elegidos. HDI devuelve la prima de lista y el descuento por
-// separado en <Totales>.
+// Flujo: se obtiene el paquete con sus coberturas por defecto y se recalcula
+// enviándolo en `paquetesConCambios` con las coberturas declaradas, el ajuste
+// (descuento) y las sumas y deducibles elegidos. HDI devuelve la prima de
+// lista y el descuento por separado en <Totales>.
 
 import type {
   Cobertura,
@@ -13,6 +12,8 @@ import type {
   DesglosePrima,
   FormaPago,
   Paquete,
+  TipoCarga,
+  Uso,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
 import { unescapeXml } from "@/lib/qualitas/soap";
@@ -37,16 +38,37 @@ const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
   pickup: { AMPLIA: 23, LIMITADA: 24, RC: 25 },
 };
 
-// Uso y servicio por tipo de vehículo: 4581 automóviles residentes / 4601
-// particular; 4596 pick up familiar / 4584 pick up carga comercial.
-const USO_SERVICIO: Record<
-  "auto" | "pickup",
-  { idUso: number; idServicio: number }
-> = {
-  auto: { idUso: 4581, idServicio: 4601 },
-  pickup: { idUso: 4596, idServicio: 4584 },
+// Uso por tipo de vehículo: 4581 automóviles residentes; 4596 pick up
+// familiar; 4584 pick up carga comercial. El servicio siempre es 4601
+// (particular).
+const ID_USO: Record<"auto" | "pickup", Record<Uso, number>> = {
+  auto: { PARTICULAR: 4581, COMERCIAL: 4581 },
+  pickup: { PARTICULAR: 4596, COMERCIAL: 4584 },
 };
-const ID_RIESGO_CARGA = 5425;
+const ID_SERVICIO_PARTICULAR = 4601;
+
+// Riesgo de carga (solo pick ups de carga comercial): 5425 no aplica / viaja
+// vacío; 4607 riesgo A y 4608 riesgo B, con la descripción de la carga del
+// catálogo de HDI (5719 abarrotes incluyendo latería, 5783 madera labrada o
+// laminada).
+const ID_RIESGO_VACIO = 5425;
+const RIESGO_CARGA: Record<
+  Exclude<TipoCarga, "VACIO">,
+  { id: number; letra: string; idDescripcion: number }
+> = {
+  A: { id: 4607, letra: "A", idDescripcion: 5719 },
+  B: { id: 4608, letra: "B", idDescripcion: 5783 },
+};
+
+export function riesgoCargaHdi(
+  s: Pick<SolicitudHdi, "vehiculo" | "uso" | "tipoCarga">,
+) {
+  const carga =
+    categoria(s.vehiculo.tipoVehiculo) === "pickup" && s.uso === "COMERCIAL"
+      ? s.tipoCarga
+      : undefined;
+  return carga && carga !== "VACIO" ? RIESGO_CARGA[carga] : undefined;
+}
 const TIPO_PERSONA = "00";
 
 const COB_DANOS_MATERIALES = 233;
@@ -119,6 +141,8 @@ export interface PaqueteHdi {
 
 export interface SolicitudHdi {
   vehiculo: ClaveHdi;
+  uso?: Uso;
+  tipoCarga?: TipoCarga;
   anio: number;
   cp: string;
   idFormaPago: number;
@@ -257,40 +281,62 @@ export function xmlPaqueteConCambios(
   );
 }
 
+export interface DatosUnidadHdi {
+  numeroSerie?: string;
+  numeroMotor?: string;
+  placas?: string;
+  idRemolque?: number;
+}
+
+// Contenido de datosVehiculo / CaracteristicasVehiculo (mismo esquema en
+// cotización, guardado y emisión).
+export function xmlVehiculoHdi(
+  s: SolicitudHdi,
+  u: DatosUnidadHdi = {},
+): string {
+  const idUso =
+    ID_USO[categoria(s.vehiculo.tipoVehiculo)][s.uso ?? "PARTICULAR"];
+  const riesgo = riesgoCargaHdi(s);
+  return (
+    xmlCampos([
+      // HDI pide idVehiculo vacío (con 0 marca error).
+      ["idVehiculo", ""],
+      ["idMarca", s.vehiculo.idMarca],
+      ["idModelo", s.anio],
+      ["idTipo", s.vehiculo.idTipo],
+      ["idVersion", s.vehiculo.idVersion],
+      ["idTransmision", s.vehiculo.idTransmision],
+      ["idUso", idUso],
+      ["tipoVehiculo", s.vehiculo.tipoVehiculo],
+      ["numeroMotor", u.numeroMotor || 0],
+      ["placas", u.placas || 0],
+      ["color", 0],
+      ["numeroSerie", u.numeroSerie ?? ""],
+      ["pasajeros", 0],
+      ["idZonaCirculacion", 0],
+      ["idTonelaje", 0],
+      ["idServicio", ID_SERVICIO_PARTICULAR],
+      ["idRiesgoCarga", riesgo?.id ?? ID_RIESGO_VACIO],
+    ]) +
+    `<pub:DatosAdicionales>${xmlCampos([
+      ["Renovaciones", 0],
+      ["idRemolque", u.idRemolque ?? 0],
+      ["CPCirculacion", s.cp],
+    ])}</pub:DatosAdicionales>` +
+    (riesgo
+      ? `<pub:DatosRiesgoCarga>${xmlCampos([
+          ["idRiesgoCarga", riesgo.letra],
+          ["idDescripcionRiesgoCarga", riesgo.idDescripcion],
+        ])}</pub:DatosRiesgoCarga>`
+      : "<pub:DatosRiesgoCarga><pub:idRiesgoCarga/><pub:idDescripcionRiesgoCarga/></pub:DatosRiesgoCarga>")
+  );
+}
+
 // Cuerpo de ObtenerPaquetes. Sin `cambios` se calcula el paquete por
 // defecto; con `cambios` se recalcula el paquete enviado.
 export function xmlObtenerPaquetes(s: SolicitudHdi, cambios?: string): string {
   const cfg = getHdiConfig();
-  const { idUso, idServicio } =
-    USO_SERVICIO[categoria(s.vehiculo.tipoVehiculo)];
-  const datosVehiculo =
-    "<pub:datosVehiculo>" +
-    xmlCampos([
-      ["idVehiculo", s.vehiculo.idVehiculo],
-      ["idMarca", 0],
-      ["idModelo", s.anio],
-      ["idTipo", 0],
-      ["idVersion", 0],
-      ["idTransmision", 0],
-      ["idUso", idUso],
-      ["tipoVehiculo", s.vehiculo.tipoVehiculo],
-      ["numeroMotor", 0],
-      ["placas", 0],
-      ["color", 0],
-      ["numeroSerie", ""],
-      ["pasajeros", 0],
-      ["idZonaCirculacion", 0],
-      ["idTonelaje", 0],
-      ["idServicio", idServicio],
-      ["idRiesgoCarga", ID_RIESGO_CARGA],
-    ]) +
-    `<pub:DatosAdicionales>${xmlCampos([
-      ["Renovaciones", 0],
-      ["idRemolque", 0],
-      ["CPCirculacion", s.cp],
-    ])}</pub:DatosAdicionales>` +
-    "<pub:DatosRiesgoCarga><pub:idRiesgoCarga/><pub:idDescripcionRiesgoCarga/></pub:DatosRiesgoCarga>" +
-    "</pub:datosVehiculo>";
+  const datosVehiculo = `<pub:datosVehiculo>${xmlVehiculoHdi(s)}</pub:datosVehiculo>`;
   const lista = cambios
     ? "<pub:listaPaquetesACalcular/>"
     : `<pub:listaPaquetesACalcular><pub:StringArray><arr:string>${s.clavePaquete}</arr:string></pub:StringArray></pub:listaPaquetesACalcular>`;
@@ -451,6 +497,72 @@ export function desglose(
   };
 }
 
+export interface CotizacionPreparadaHdi {
+  solicitud: SolicitudHdi;
+  paquete: PaqueteHdi;
+  ajustes: string[];
+  descuento: number;
+}
+
+// Solicitud y paquete de HDI con las coberturas declaradas, el descuento y
+// las sumas/deducibles elegidos (misma base para cotizar, guardar y emitir).
+export async function prepararCotizacionHdi(
+  request: CotizacionRequest,
+  descuento: number,
+  claveHdi: string,
+): Promise<CotizacionPreparadaHdi> {
+  const cfg = getHdiConfig();
+  const vehiculo = parsearClaveHdi(claveHdi);
+  if (!vehiculo) throw new HdiError(`Clave HDI inválida: ${claveHdi}.`);
+  const inicio = new Date();
+  const fin = new Date(inicio);
+  fin.setFullYear(fin.getFullYear() + 1);
+
+  const solicitud: SolicitudHdi = {
+    vehiculo,
+    uso: request.vehiculo.uso,
+    tipoCarga: request.vehiculo.tipoCarga,
+    anio: request.vehiculo.anio,
+    cp: request.vehiculo.cp,
+    idFormaPago: await idFormaPago(request.formaPago),
+    clavePaquete:
+      PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][request.paquete],
+    inicio: fecha(inicio),
+    fin: fecha(fin),
+  };
+
+  // HDI exige declarar las coberturas (sumas y deducibles) en la
+  // cotización: la primera llamada trae la estructura del paquete y la
+  // segunda cotiza con las coberturas declaradas.
+  let paquete = await obtenerPaquete(solicitud);
+  const ajustes: string[] = [];
+  if (request.coberturasPersonalizadas) {
+    aplicarPersonalizadas(request.coberturasPersonalizadas, paquete, ajustes);
+  }
+  paquete = await obtenerPaquete(
+    solicitud,
+    xmlPaqueteConCambios(
+      paquete,
+      solicitud,
+      descuento,
+      cfg.tipoAjusteDescuento,
+    ),
+  );
+  if (
+    descuento > 0 &&
+    paquete.porcentajeAjuste &&
+    paquete.porcentajeAjuste < descuento
+  ) {
+    ajustes.push(
+      `Descuento: HDI autoriza máximo ${paquete.porcentajeAjuste}% en este paquete.`,
+    );
+  }
+  if (!paquete.totales.primaTotal) {
+    throw new HdiError("HDI no devolvió una prima válida para el paquete.");
+  }
+  return { solicitud, paquete, ajustes, descuento };
+}
+
 export async function cotizarHdiReal(
   aseguradoraId: string,
   aseguradora: string,
@@ -472,55 +584,11 @@ export async function cotizarHdiReal(
   }
 
   try {
-    const vehiculo = parsearClaveHdi(claveHdi);
-    if (!vehiculo) throw new HdiError(`Clave HDI inválida: ${claveHdi}.`);
-    const inicio = new Date();
-    const fin = new Date(inicio);
-    fin.setFullYear(fin.getFullYear() + 1);
-
-    const solicitud: SolicitudHdi = {
-      vehiculo,
-      anio: request.vehiculo.anio,
-      cp: request.vehiculo.cp,
-      idFormaPago: await idFormaPago(request.formaPago),
-      clavePaquete:
-        PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][request.paquete],
-      inicio: fecha(inicio),
-      fin: fecha(fin),
-    };
-
-    let paquete = await obtenerPaquete(solicitud);
-    const ajustes: string[] = [];
-    const personalizado = request.coberturasPersonalizadas
-      ? aplicarPersonalizadas(
-          request.coberturasPersonalizadas,
-          paquete,
-          ajustes,
-        )
-      : false;
-    if (descuento > 0 || personalizado) {
-      paquete = await obtenerPaquete(
-        solicitud,
-        xmlPaqueteConCambios(
-          paquete,
-          solicitud,
-          descuento,
-          cfg.tipoAjusteDescuento,
-        ),
-      );
-    }
-    if (
-      descuento > 0 &&
-      paquete.porcentajeAjuste &&
-      paquete.porcentajeAjuste < descuento
-    ) {
-      ajustes.push(
-        `Descuento: HDI autoriza máximo ${paquete.porcentajeAjuste}% en este paquete.`,
-      );
-    }
-    if (!paquete.totales.primaTotal) {
-      throw new HdiError("HDI no devolvió una prima válida para el paquete.");
-    }
+    const { solicitud, paquete, ajustes } = await prepararCotizacionHdi(
+      request,
+      descuento,
+      claveHdi,
+    );
 
     return {
       ...base,

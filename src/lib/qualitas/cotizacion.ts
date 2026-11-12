@@ -125,7 +125,7 @@ function construirCoberturasDesdeRespuesta(
     return {
       nombre: COBERTURA_QUALITAS[no] ?? nombre,
       incluida: true,
-      sumaAsegurada: formatSuma(c.suma, c.tipoSuma),
+      sumaAsegurada: formatSuma(c.suma, no === "1" || no === "3" ? c.tipoSuma : ""),
       deducible: formatDeducible(c.deducible),
     };
   });

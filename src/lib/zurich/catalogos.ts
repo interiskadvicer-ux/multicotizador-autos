@@ -151,7 +151,11 @@ async function buscarPorTipo(
   if (!marca) return [];
   const lista = await submarcas(tipoVehiculo, marca.id);
   const elegidas = filtros.submarca
-    ? [buscarEquivalente(lista, filtros.submarca)].filter((s): s is Entrada => Boolean(s))
+    ? [
+        // Zurich nombra algunas submarcas con la marca ("MAZDA CX-30").
+        buscarEquivalente(lista, filtros.submarca) ??
+          buscarEquivalente(lista, `${marca.nombre} ${filtros.submarca}`),
+      ].filter((s): s is Entrada => Boolean(s))
     : lista;
   const porSubmarca = await Promise.all(
     elegidas.map(async (sub) =>
