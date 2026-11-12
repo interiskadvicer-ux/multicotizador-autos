@@ -89,6 +89,12 @@ function LoginForm() {
         >
           {cargando ? "Ingresando…" : "Iniciar sesión"}
         </button>
+        <p className="text-center text-xs text-slate-500">
+          ¿Eres agente y quieres vender con nosotros?{" "}
+          <a href="/registro" className="font-semibold text-sky-700 hover:underline">
+            Regístrate aquí
+          </a>
+        </p>
       </form>
     </div>
   );

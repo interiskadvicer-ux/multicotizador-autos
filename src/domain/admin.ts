@@ -1,6 +1,6 @@
 // Tipos de dominio para autenticación, pólizas y auditoría.
 
-export type Rol = "ADMIN" | "POLIZAS" | "COTIZADOR";
+export type Rol = "ADMIN" | "POLIZAS" | "COTIZADOR" | "AGENTE";
 
 export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
   {
@@ -17,6 +17,12 @@ export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
     value: "COTIZADOR",
     label: "Cotizador",
     descripcion: "Solo puede generar cotizaciones.",
+  },
+  {
+    value: "AGENTE",
+    label: "Agente",
+    descripcion:
+      "Agente externo autorizado: cotiza y ve solo sus cotizaciones y pólizas.",
   },
 ];
 
@@ -37,6 +43,15 @@ export interface SesionUsuario {
   rol: Rol;
 }
 
+export type FormaPagoPoliza = "ANUAL" | "SEMESTRAL" | "TRIMESTRAL" | "MENSUAL";
+
+export const RECIBOS_POR_FORMA: Record<FormaPagoPoliza, number> = {
+  ANUAL: 1,
+  SEMESTRAL: 2,
+  TRIMESTRAL: 4,
+  MENSUAL: 12,
+};
+
 export interface Poliza {
   id: number;
   numeroPoliza: string;
@@ -48,6 +63,14 @@ export interface Poliza {
   vigenciaInicio: string; // ISO yyyy-mm-dd
   vigenciaFin: string; // ISO yyyy-mm-dd
   notas?: string;
+  // Define cuántos recibos se esperan en la vigencia (anual = 1).
+  formaPago?: FormaPagoPoliza;
+  // Archivo PDF de la carátula, guardado en uploads/polizas.
+  caratula?: string | null;
+  // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
+  agenteId?: number | null;
+  // Suma de pagos registrados (manuales o por estado de cuenta).
+  pagado?: number;
   createdBy: number | null;
   createdAt: string;
   updatedAt: string;
@@ -55,7 +78,7 @@ export interface Poliza {
 
 export type PolizaInput = Omit<
   Poliza,
-  "id" | "createdBy" | "createdAt" | "updatedAt"
+  "id" | "createdBy" | "createdAt" | "updatedAt" | "pagado"
 >;
 
 // Ramos comunes del mercado mexicano (el usuario puede escribir uno libre).

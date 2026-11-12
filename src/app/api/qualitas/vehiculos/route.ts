@@ -9,7 +9,7 @@ import {
 // Búsqueda en el catálogo de vehículos de Quálitas (WSTarifas) para obtener la
 // ClaveAmis a partir de marca / línea / versión / año.
 export async function GET(req: Request) {
-  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR"]);
+  const { error } = await requireApiSesion(["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"]);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

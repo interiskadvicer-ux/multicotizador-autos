@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RAMOS, type Poliza } from "@/domain/admin";
+import type { FormaPagoPoliza } from "@/domain/admin";
 import type { EstadoVigencia } from "@/lib/polizas";
 import { formatMXN } from "@/lib/format";
 
 type PolizaConEstado = Poliza & {
   estado: EstadoVigencia;
   diasParaVencer: number;
+  pagado: number;
+  saldo: number;
+  estadoPago: "PENDIENTE" | "PARCIAL" | "PAGADA";
 };
 
 const ESTADO_META: Record<
@@ -31,7 +35,17 @@ interface FormState {
   vigenciaInicio: string;
   vigenciaFin: string;
   notas: string;
+  formaPago: FormaPagoPoliza;
+  caratula: string | null;
+  agenteId: string;
 }
+
+const FORMAS_PAGO: { valor: FormaPagoPoliza; texto: string }[] = [
+  { valor: "ANUAL", texto: "Anual (1 recibo)" },
+  { valor: "SEMESTRAL", texto: "Semestral (2 recibos)" },
+  { valor: "TRIMESTRAL", texto: "Trimestral (4 recibos)" },
+  { valor: "MENSUAL", texto: "Mensual (12 recibos)" },
+];
 
 const FORM_VACIO: FormState = {
   id: null,
@@ -44,18 +58,35 @@ const FORM_VACIO: FormState = {
   vigenciaInicio: "",
   vigenciaFin: "",
   notas: "",
+  formaPago: "ANUAL",
+  caratula: null,
+  agenteId: "",
 };
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200";
 const labelCls = "mb-1 block text-xs font-medium text-slate-600";
 
-export default function PolizasManager() {
+interface Props {
+  // Agentes: solo consultan sus pólizas, sin alta/edición.
+  soloLectura?: boolean;
+}
+
+const PAGO_META: Record<PolizaConEstado["estadoPago"], { label: string; cls: string }> = {
+  PENDIENTE: { label: "Pendiente", cls: "bg-amber-50 text-amber-700" },
+  PARCIAL: { label: "Parcial", cls: "bg-sky-50 text-sky-700" },
+  PAGADA: { label: "Pagada", cls: "bg-emerald-50 text-emerald-700" },
+};
+
+export default function PolizasManager({ soloLectura = false }: Props) {
+  const [agentes, setAgentes] = useState<{ id: number; nombre: string }[]>([]);
   const [polizas, setPolizas] = useState<PolizaConEstado[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [leyendoPdf, setLeyendoPdf] = useState(false);
+  const [avisoPdf, setAvisoPdf] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<"TODAS" | "VENCIMIENTOS">("TODAS");
 
   async function cargar() {
@@ -75,7 +106,16 @@ export default function PolizasManager() {
 
   useEffect(() => {
     cargar();
-  }, []);
+    if (!soloLectura) {
+      fetch("/api/agentes")
+        .then((r) => (r.ok ? r.json() : { agentes: [] }))
+        .then((d) => setAgentes(d.agentes ?? []))
+        .catch(() => setAgentes([]));
+    }
+  }, [soloLectura]);
+
+  const nombreAgente = (id?: number | null) =>
+    agentes.find((a) => a.id === id)?.nombre ?? "—";
 
   const vencimientos = useMemo(
     () => polizas.filter((p) => p.estado !== "VIGENTE"),
@@ -85,7 +125,50 @@ export default function PolizasManager() {
   const visibles = filtro === "TODAS" ? polizas : vencimientos;
 
   function abrirNueva() {
+    setAvisoPdf(null);
     setForm({ ...FORM_VACIO });
+  }
+
+  // Sube la carátula, prellena los campos detectados y deja el PDF ligado a
+  // la póliza al guardar.
+  async function leerPdf(archivo: File) {
+    if (!form) return;
+    setLeyendoPdf(true);
+    setError(null);
+    setAvisoPdf(null);
+    try {
+      const fd = new FormData();
+      fd.append("archivo", archivo);
+      const res = await fetch("/api/polizas/leer-pdf", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo leer el PDF.");
+      const d = data.datos as Partial<Record<keyof FormState, string | number>>;
+      const campos = Object.keys(d).length;
+      setForm((f) =>
+        f && {
+          ...f,
+          numeroPoliza: d.numeroPoliza ? String(d.numeroPoliza) : f.numeroPoliza,
+          ramo: d.ramo ? String(d.ramo) : f.ramo,
+          aseguradora: d.aseguradora ? String(d.aseguradora) : f.aseguradora,
+          asegurado: d.asegurado ? String(d.asegurado) : f.asegurado,
+          primaNeta: d.primaNeta != null ? String(d.primaNeta) : f.primaNeta,
+          primaTotal: d.primaTotal != null ? String(d.primaTotal) : f.primaTotal,
+          vigenciaInicio: d.vigenciaInicio ? String(d.vigenciaInicio) : f.vigenciaInicio,
+          vigenciaFin: d.vigenciaFin ? String(d.vigenciaFin) : f.vigenciaFin,
+          formaPago: (d.formaPago as FormaPagoPoliza) ?? f.formaPago,
+          caratula: data.caratula,
+        },
+      );
+      setAvisoPdf(
+        data.sinTexto
+          ? "El PDF no tiene texto (parece escaneado): captura los datos a mano. El PDF quedará guardado con la póliza."
+          : `Se llenaron ${campos} de 9 campos desde el PDF. Revísalos antes de guardar.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setLeyendoPdf(false);
+    }
   }
 
   function abrirEdicion(p: PolizaConEstado) {
@@ -100,6 +183,9 @@ export default function PolizasManager() {
       vigenciaInicio: p.vigenciaInicio,
       vigenciaFin: p.vigenciaFin,
       notas: p.notas ?? "",
+      formaPago: p.formaPago ?? "ANUAL",
+      caratula: null,
+      agenteId: p.agenteId ? String(p.agenteId) : "",
     });
   }
 
@@ -118,6 +204,9 @@ export default function PolizasManager() {
       vigenciaInicio: form.vigenciaInicio,
       vigenciaFin: form.vigenciaFin,
       notas: form.notas || undefined,
+      formaPago: form.formaPago,
+      caratula: form.caratula,
+      agenteId: form.agenteId ? Number(form.agenteId) : null,
     };
     try {
       const res = await fetch(
@@ -188,6 +277,7 @@ export default function PolizasManager() {
           >
             Descargar Excel
           </a>
+          {!soloLectura && (
           <button
             type="button"
             onClick={abrirNueva}
@@ -195,6 +285,7 @@ export default function PolizasManager() {
           >
             + Nueva póliza
           </button>
+          )}
         </div>
       </div>
 
@@ -209,10 +300,44 @@ export default function PolizasManager() {
           onSubmit={guardar}
           className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
         >
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">
-            {form.id ? "Editar póliza" : "Nueva póliza"}
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-sky-700">
+              {form.id ? "Editar póliza" : "Nueva póliza"}
+            </h2>
+            <label className="cursor-pointer rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50">
+              {leyendoPdf ? "Leyendo PDF…" : form.caratula ? "PDF cargado · cambiar" : "Llenar desde PDF de la póliza"}
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                disabled={leyendoPdf}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) leerPdf(f);
+                }}
+              />
+            </label>
+          </div>
+          {avisoPdf && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">{avisoPdf}</div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className={labelCls}>Agente</label>
+              <select
+                className={inputCls}
+                value={form.agenteId}
+                onChange={(e) => setForm({ ...form, agenteId: e.target.value })}
+              >
+                <option value="">Sin agente (cartera propia)</option>
+                {agentes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelCls}>No. de póliza</label>
               <input
@@ -292,6 +417,22 @@ export default function PolizasManager() {
               />
             </div>
             <div>
+              <label className={labelCls}>Forma de pago</label>
+              <select
+                className={inputCls}
+                value={form.formaPago}
+                onChange={(e) =>
+                  setForm({ ...form, formaPago: e.target.value as FormaPagoPoliza })
+                }
+              >
+                {FORMAS_PAGO.map((f) => (
+                  <option key={f.valor} value={f.valor}>
+                    {f.texto}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>Vigencia inicio</label>
               <input
                 type="date"
@@ -355,19 +496,21 @@ export default function PolizasManager() {
               <th className="px-4 py-3 text-right">Prima total</th>
               <th className="px-4 py-3">Vigencia</th>
               <th className="px-4 py-3">Estado</th>
-              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3">Pago</th>
+              {!soloLectura && <th className="px-4 py-3">Agente</th>}
+              {!soloLectura && <th className="px-4 py-3"></th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {cargando ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 9 : 11} className="px-4 py-8 text-center text-slate-400">
                   Cargando…
                 </td>
               </tr>
             ) : visibles.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={soloLectura ? 9 : 11} className="px-4 py-8 text-center text-slate-400">
                   {filtro === "VENCIMIENTOS"
                     ? "No hay pólizas próximas a vencer."
                     : "Aún no hay pólizas registradas."}
@@ -380,8 +523,25 @@ export default function PolizasManager() {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">
                       {p.numeroPoliza}
+                      {p.caratula && (
+                        <a
+                          href={`/api/polizas/${p.id}/caratula`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-2 text-xs font-normal text-sky-700 hover:underline"
+                        >
+                          PDF
+                        </a>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{p.ramo}</td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {p.ramo}
+                      {p.formaPago && p.formaPago !== "ANUAL" && (
+                        <div className="text-xs text-slate-400">
+                          {p.formaPago.charAt(0) + p.formaPago.slice(1).toLowerCase()}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-600">
                       {p.aseguradora}
                     </td>
@@ -405,6 +565,20 @@ export default function PolizasManager() {
                           : ""}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${PAGO_META[p.estadoPago].cls}`}
+                        title={`Pagado ${formatMXN(p.pagado)} · saldo ${formatMXN(p.saldo)}`}
+                      >
+                        {PAGO_META[p.estadoPago].label}
+                      </span>
+                    </td>
+                    {!soloLectura && (
+                      <td className="px-4 py-3 text-slate-600">
+                        {nombreAgente(p.agenteId)}
+                      </td>
+                    )}
+                    {!soloLectura && (
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
                         type="button"
@@ -421,6 +595,7 @@ export default function PolizasManager() {
                         Eliminar
                       </button>
                     </td>
+                    )}
                   </tr>
                 );
               })

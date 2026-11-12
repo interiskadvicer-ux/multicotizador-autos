@@ -36,6 +36,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de El Potosí (`tipo-marca-modelo-version`,
   // p. ej. AUT-120-001-07). Requerida para la cotización real de El Potosí.
   claveElPotosi?: string;
+  // Clave del vehículo en el catálogo de General de Seguros (claveGs, p. ej.
+  // 10598). Requerida para la cotización real de General de Seguros.
+  claveGs?: string;
 }
 
 export interface Conductor {

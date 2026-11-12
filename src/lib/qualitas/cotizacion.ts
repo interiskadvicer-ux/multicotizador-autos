@@ -17,8 +17,10 @@ import { estadoDesdeCP } from "./estados";
 const SOAP_ACTION = "http://qualitas.com.mx/obtenerNuevaEmision";
 const NS = "http://qualitas.com.mx/";
 
+export const USOS_VEHICULO = ["01", "05"] as const;
+
 // Paquete del multicotizador -> código de paquete Quálitas (Anexo 5).
-const PAQUETE_A_QUALITAS: Record<Paquete, string> = {
+export const PAQUETE_A_QUALITAS: Record<Paquete, string> = {
   AMPLIA: "01",
   LIMITADA: "03",
   RC: "04",
@@ -129,30 +131,36 @@ function construirCoberturasDesdeRespuesta(
   });
 }
 
-// Coberturas personalizadas -> nodos <Coberturas> del XML de Quálitas. Sólo se
-// envían las coberturas que aplican al paquete (DM sólo en Amplia, RT y GMO en
-// Amplia/Limitada) para no alterar la composición del paquete.
-function xmlCoberturasPersonalizadas(request: CotizacionRequest): string {
-  const cob = request.coberturasPersonalizadas;
-  if (!cob) return "";
-  const paquete = request.paquete;
-  const nodo = (no: string, suma: string, tipoSuma: string, deducible: string) =>
-    `<Coberturas NoCobertura="${no}"><SumaAsegurada>${suma}</SumaAsegurada>` +
-    `<TipoSuma>${tipoSuma}</TipoSuma><Deducible>${deducible}</Deducible><Prima/></Coberturas>`;
-  let xml = "";
-  if (paquete === "AMPLIA" && cob.deducibleDanosMateriales !== undefined) {
-    xml += nodo("1", "0", "3", String(cob.deducibleDanosMateriales));
-  }
-  if (paquete !== "RC" && cob.deducibleRoboTotal !== undefined) {
-    xml += nodo("3", "0", "3", String(cob.deducibleRoboTotal));
-  }
-  if (cob.responsabilidadCivil !== undefined) {
-    xml += nodo("4", String(cob.responsabilidadCivil), "0", "0");
-  }
-  if (paquete !== "RC" && cob.gastosMedicos !== undefined) {
-    xml += nodo("5", String(cob.gastosMedicos), "0", "0");
-  }
-  return xml;
+// Coberturas del negocio (XML de ejemplo de Quálitas para el negocio 08849):
+// cada paquete se envía con sus coberturas y deducibles explícitos; si no, el
+// WS aplica sus valores por omisión (DM 5%, RT 10%, RC sin deducible) y la
+// prima no cuadra con la del negocio. Las coberturas personalizadas sólo
+// sustituyen deducibles y sumas de DM, RT, RC y GM.
+const COBERTURAS_POR_PAQUETE: Record<Paquete, string[]> = {
+  AMPLIA: ["1", "3", "4", "5", "6", "7", "11", "14", "22", "47"],
+  LIMITADA: ["3", "4", "5", "6", "7", "11", "14", "22", "47"],
+  RC: ["4", "5", "6", "7", "11", "14", "22", "47"],
+};
+
+export function xmlCoberturasNegocio(request: CotizacionRequest): string {
+  const cob = request.coberturasPersonalizadas ?? {};
+  const valores: Record<string, [number, string, number]> = {
+    "1": [0, "0", cob.deducibleDanosMateriales ?? 20],
+    "3": [0, "0", cob.deducibleRoboTotal ?? 20],
+    "4": [cob.responsabilidadCivil ?? 3_000_000, "0", 50],
+    "5": [cob.gastosMedicos ?? 200_000, "0", 0],
+    "6": [100_000, "0", 0],
+    "47": [1_000_000, "14", 0],
+  };
+  return COBERTURAS_POR_PAQUETE[request.paquete]
+    .map((no) => {
+      const [suma, tipoSuma, deducible] = valores[no] ?? [0, "0", 0];
+      return (
+        `<Coberturas NoCobertura="${no}"><SumaAsegurada>${suma}</SumaAsegurada>` +
+        `<TipoSuma>${tipoSuma}</TipoSuma><Deducible>${deducible}</Deducible><Prima>0</Prima></Coberturas>`
+      );
+    })
+    .join("");
 }
 
 function construirXmlCotizacion(
@@ -162,6 +170,7 @@ function construirXmlCotizacion(
   estadoId: number,
   inicio: Date,
   fin: Date,
+  uso: string,
 ): string {
   const cfg = getQualitasConfig();
   const dv = digitoVerificador(claveAmis);
@@ -184,10 +193,13 @@ function construirXmlCotizacion(
     `<ClaveAmis>${escapeXml(claveAmis)}</ClaveAmis>` +
     `<Modelo>${modelo}</Modelo>` +
     "<DescripcionVehiculo/>" +
-    "<Uso>01</Uso><Servicio>01</Servicio>" +
+    `<Uso>${uso}</Uso><Servicio>01</Servicio>` +
     `<Paquete>${paquete}</Paquete>` +
     "<Motor/><Serie/>" +
-    xmlCoberturasPersonalizadas(request) +
+    xmlCoberturasNegocio(request) +
+    '<ConsideracionesAdicionalesDV NoConsideracion="39">' +
+    "<TipoRegla>0</TipoRegla><ValorRegla>N|S</ValorRegla>" +
+    "</ConsideracionesAdicionalesDV>" +
     "</DatosVehiculo>" +
     "<DatosGenerales>" +
     `<FechaEmision>${fechaISO(inicio)}</FechaEmision>` +
@@ -206,6 +218,9 @@ function construirXmlCotizacion(
     "</ConsideracionesAdicionalesDG>" +
     '<ConsideracionesAdicionalesDG NoConsideracion="4">' +
     `<TipoRegla>0</TipoRegla><ValorRegla>${ambienteRegla}</ValorRegla>` +
+    "</ConsideracionesAdicionalesDG>" +
+    '<ConsideracionesAdicionalesDG NoConsideracion="5">' +
+    "<TipoRegla>0</TipoRegla><ValorRegla>14</ValorRegla>" +
     "</ConsideracionesAdicionalesDG>" +
     "</DatosGenerales>" +
     "<Primas><PrimaNeta/><Derecho/><Recargo/><Impuesto/><PrimaTotal/><Comision/></Primas>" +
@@ -244,49 +259,58 @@ export async function cotizarQualitasReal(
   const fin = new Date();
   fin.setFullYear(fin.getFullYear() + 1);
 
-  const xml = construirXmlCotizacion(
-    request,
-    descuento,
-    claveAmis,
-    estadoId,
-    inicio,
-    fin,
-  );
-  const body =
-    `<obtenerNuevaEmision xmlns="${NS}">` +
-    `<xmlEmision>${escapeXml(xml)}</xmlEmision>` +
-    "</obtenerNuevaEmision>";
+  // Autos usan Uso 01 (Normal); pickups y otras categorías sólo aceptan 05
+  // (Personal) y el WS responde "0288-- Uso invalido para esta categoria".
+  let movimiento = "";
+  for (const uso of USOS_VEHICULO) {
+    const xml = construirXmlCotizacion(
+      request,
+      descuento,
+      claveAmis,
+      estadoId,
+      inicio,
+      fin,
+      uso,
+    );
+    const body =
+      `<obtenerNuevaEmision xmlns="${NS}">` +
+      `<xmlEmision>${escapeXml(xml)}</xmlEmision>` +
+      "</obtenerNuevaEmision>";
 
-  let respuesta: string;
-  try {
-    respuesta = await soapCall({
-      url: cfg.wsEmisionUrl,
-      soapAction: SOAP_ACTION,
-      body,
-      timeoutMs: cfg.timeoutMs,
-    });
-  } catch (err) {
-    return {
-      ...base,
-      status: "error",
-      error:
-        err instanceof Error
-          ? `No se pudo consultar a Quálitas: ${err.message}`
-          : "No se pudo consultar a Quálitas.",
-      tiempoRespuestaMs: Date.now() - inicioTiempo,
-    };
-  }
+    let respuesta: string;
+    try {
+      respuesta = await soapCall({
+        url: cfg.wsEmisionUrl,
+        soapAction: SOAP_ACTION,
+        body,
+        timeoutMs: cfg.timeoutMs,
+      });
+    } catch (err) {
+      return {
+        ...base,
+        status: "error",
+        error:
+          err instanceof Error
+            ? `No se pudo consultar a Quálitas: ${err.message}`
+            : "No se pudo consultar a Quálitas.",
+        tiempoRespuestaMs: Date.now() - inicioTiempo,
+      };
+    }
 
-  const resultInner = extractTag(respuesta, "obtenerNuevaEmisionResult");
-  if (!resultInner) {
-    return {
-      ...base,
-      status: "error",
-      error: "Respuesta inesperada del web service de Quálitas.",
-      tiempoRespuestaMs: Date.now() - inicioTiempo,
-    };
+    const resultInner = extractTag(respuesta, "obtenerNuevaEmisionResult");
+    if (!resultInner) {
+      return {
+        ...base,
+        status: "error",
+        error: "Respuesta inesperada del web service de Quálitas.",
+        tiempoRespuestaMs: Date.now() - inicioTiempo,
+      };
+    }
+    movimiento = unescapeXml(resultInner);
+    if (!/^0*288\b/.test((extractTag(movimiento, "CodigoError") || "").trim())) {
+      break;
+    }
   }
-  const movimiento = unescapeXml(resultInner);
 
   const errorMsg = interpretarError(extractTag(movimiento, "CodigoError"));
   if (errorMsg) {
@@ -300,9 +324,8 @@ export async function cotizarQualitasReal(
 
   const vehiculoXml =
     movimiento.match(/<DatosVehiculo[\s\S]*?<\/DatosVehiculo>/)?.[0] ?? "";
-  const coberturas = construirCoberturasDesdeRespuesta(
-    parseCoberturas(vehiculoXml),
-  );
+  const coberturasResp = parseCoberturas(vehiculoXml);
+  const coberturas = construirCoberturasDesdeRespuesta(coberturasResp);
 
   const primasXml =
     movimiento.match(/<Primas>[\s\S]*?<\/Primas>/)?.[0] ?? movimiento;
@@ -321,12 +344,15 @@ export async function cotizarQualitasReal(
     };
   }
 
-  // Quálitas devuelve la prima neta ya con el descuento aplicado. Reconstruimos
-  // el desglose interno (sin descuento / descuento) sólo para la pantalla del
-  // broker; el PDF del cliente no muestra descuentos.
-  const desc = Math.min(Math.max(descuento, 0), 99);
+  // Quálitas devuelve la prima neta ya con el descuento aplicado y, por
+  // cobertura, la prima sin descuento. El descuento no aplica a todas las
+  // coberturas (p. ej. Asistencia Vial), así que la prima "antes del
+  // descuento" es la suma de las primas por cobertura, no primaNeta / (1 - %).
+  const sumaPrimasCoberturas = round2(
+    Array.from(coberturasResp.values()).reduce((t, c) => t + c.prima, 0),
+  );
   const primaNetaSinDescuento =
-    desc > 0 ? round2(primaNeta / (1 - desc / 100)) : primaNeta;
+    sumaPrimasCoberturas >= primaNeta ? sumaPrimasCoberturas : round2(primaNeta);
   const descuentoMonto = round2(primaNetaSinDescuento - primaNeta);
 
   const prima: DesglosePrima = {

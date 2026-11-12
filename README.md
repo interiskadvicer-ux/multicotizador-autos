@@ -63,6 +63,16 @@ ADMIN_EMAIL=admin@tudominio.com ADMIN_PASSWORD='una-contraseña-fuerte' \
 Es idempotente: si el correo ya existe, actualiza su contraseña y lo deja como
 `ADMIN` activo. La base de datos (`/data`) queda fuera del repositorio.
 
+### Catálogo de códigos postales (SEPOMEX)
+
+```bash
+npm run sepomex
+```
+
+Descarga el catálogo de Correos de México y genera `sepomex.json` junto a la
+base de datos. Con él, al capturar el CP del contratante se llenan estado y
+municipio y se ofrecen sus colonias. Sin el catálogo solo se infiere el estado.
+
 ## Arquitectura
 
 ```

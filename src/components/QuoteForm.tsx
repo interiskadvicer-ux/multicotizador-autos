@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CotizacionRequest } from "@/domain/types";
 import { ANIOS, FORMAS_PAGO, MARCAS, PAQUETES } from "@/domain/catalogs";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
@@ -9,6 +9,7 @@ import type { VehiculoAfirme } from "@/lib/afirme/catalogos";
 import type { VehiculoZurich } from "@/lib/zurich/catalogos";
 import type { VehiculoHdi } from "@/lib/hdi/catalogos";
 import type { VehiculoElPotosi } from "@/lib/elpotosi/catalogos";
+import type { VehiculoGs } from "@/lib/gs/catalogos";
 
 type AseguradoraCatalogo =
   | "qualitas"
@@ -16,7 +17,8 @@ type AseguradoraCatalogo =
   | "afirme"
   | "zurich"
   | "hdi"
-  | "elpotosi";
+  | "elpotosi"
+  | "generalseguros";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -31,8 +33,6 @@ interface OpcionVehiculo {
   version?: string;
 }
 
-const marcas = Object.keys(MARCAS);
-
 const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
   "qualitas",
   "banorte",
@@ -40,6 +40,7 @@ const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
   "zurich",
   "hdi",
   "elpotosi",
+  "generalseguros",
 ];
 
 function tokens(texto: string): Set<string> {
@@ -95,8 +96,11 @@ function masParecida(
 }
 
 export default function QuoteForm({ onCotizar, cargando }: Props) {
-  const [marca, setMarca] = useState(marcas[0]);
-  const [modelo, setModelo] = useState(MARCAS[marcas[0]][0]);
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [modelos, setModelos] = useState<string[]>([]);
+  const [cargandoModelos, setCargandoModelos] = useState(false);
+  const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
   const [anio, setAnio] = useState<number>(ANIOS[0]);
   const [version, setVersion] = useState("");
   const [uso, setUso] = useState<"PARTICULAR" | "COMERCIAL">("PARTICULAR");
@@ -117,6 +121,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveZurich, setClaveZurich] = useState("");
   const [claveHdi, setClaveHdi] = useState("");
   const [claveElPotosi, setClaveElPotosi] = useState("");
+  const [claveGs, setClaveGs] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<Record<string, boolean>>({});
   const [catAbierto, setCatAbierto] = useState<Record<string, boolean>>({});
@@ -128,7 +133,35 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     Record<string, OpcionVehiculo[]>
   >({});
 
-  const modelos = useMemo(() => MARCAS[marca] ?? [], [marca]);
+  useEffect(() => {
+    fetch("/api/vehiculos/marcas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMarcas(d?.marcas?.length ? d.marcas : Object.keys(MARCAS)))
+      .catch(() => setMarcas(Object.keys(MARCAS)));
+  }, []);
+
+  useEffect(() => {
+    if (!marca) {
+      setModelos([]);
+      return;
+    }
+    let vigente = true;
+    setCargandoModelos(true);
+    const params = new URLSearchParams({ marca, anio: String(anio) });
+    fetch(`/api/vehiculos/modelos?${params.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vigente) return;
+        const lista: string[] = d?.modelos ?? [];
+        setModelos(lista);
+        setModelo((actual) => (lista.includes(actual) ? actual : ""));
+      })
+      .catch(() => vigente && setModelos([]))
+      .finally(() => vigente && setCargandoModelos(false));
+    return () => {
+      vigente = false;
+    };
+  }, [marca, anio]);
 
   async function buscarCatalogo(
     aseguradora: AseguradoraCatalogo,
@@ -136,6 +169,13 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     url: string,
     normalizar: (data: { vehiculos?: unknown[] }) => OpcionVehiculo[],
   ) {
+    if (!marca || !modelo) {
+      setCatError((e) => ({
+        ...e,
+        [aseguradora]: "Primero elige la marca y el modelo.",
+      }));
+      return;
+    }
     setCatBuscando((b) => ({ ...b, [aseguradora]: true }));
     setCatError((e) => ({ ...e, [aseguradora]: "" }));
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
@@ -302,7 +342,8 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     else if (aseguradora === "afirme") setClaveAfirme(clave);
     else if (aseguradora === "zurich") setClaveZurich(clave);
     else if (aseguradora === "hdi") setClaveHdi(clave);
-    else setClaveElPotosi(clave);
+    else if (aseguradora === "elpotosi") setClaveElPotosi(clave);
+    else setClaveGs(clave);
     setCatElegido((el) => ({ ...el, [aseguradora]: v }));
   }
 
@@ -311,6 +352,25 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     setCatResultados({});
     setCatAbierto({});
     setCatError({});
+  }
+
+  function buscarGs() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "generalseguros",
+      "General de Seguros",
+      `/api/gs/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoGs[]).map((v) => ({
+          clave: v.claveGs,
+          etiqueta: `${v.marca} ${v.submarca} ${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
   }
 
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
@@ -329,6 +389,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
       zurich: buscarZurich,
       hdi: buscarHdi,
       elpotosi: buscarElPotosi,
+      generalseguros: buscarGs,
     };
     return Promise.all(ASEGURADORAS_CATALOGO.map((id) => buscadores[id]()));
   }
@@ -350,6 +411,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveZurich: claveZurich.trim() || undefined,
         claveHdi: claveHdi.trim() || undefined,
         claveElPotosi: claveElPotosi.trim() || undefined,
+        claveGs: claveGs.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -376,43 +438,81 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <section>
+        <p className="mb-4 text-xs text-slate-500">
+          <span className="text-red-600">*</span> Datos obligatorios para cotizar
+        </p>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-sky-700">
           Datos del vehículo
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className={labelCls}>Marca</label>
+            <label className={labelCls}>
+              Marca
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={marca}
+              required
               onChange={(e) => {
                 setMarca(e.target.value);
-                setModelo(MARCAS[e.target.value][0]);
+                setModelo("");
                 limpiarClaves();
               }}
             >
+              <option value="" disabled>
+                {marcas.length ? "Selecciona la marca" : "Cargando marcas…"}
+              </option>
               {marcas.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={labelCls}>Modelo / Línea</label>
-            <select
-              className={inputCls}
-              value={modelo}
-              onChange={(e) => {
-                setModelo(e.target.value);
-                limpiarClaves();
-              }}
-            >
-              {modelos.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <label className={labelCls}>
+              Modelo / Línea
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
+            {marca && !cargandoModelos && modelos.length === 0 ? (
+              <input
+                className={inputCls}
+                value={modelo}
+                required
+                placeholder="Escribe el modelo"
+                onChange={(e) => {
+                  setModelo(e.target.value);
+                  limpiarClaves();
+                }}
+              />
+            ) : (
+              <select
+                className={inputCls}
+                value={modelo}
+                required
+                disabled={!marca || cargandoModelos}
+                onChange={(e) => {
+                  setModelo(e.target.value);
+                  limpiarClaves();
+                }}
+              >
+                <option value="" disabled>
+                  {!marca
+                    ? "Primero elige la marca"
+                    : cargandoModelos
+                      ? "Cargando modelos…"
+                      : "Selecciona el modelo"}
+                </option>
+                {modelos.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
-            <label className={labelCls}>Año</label>
+            <label className={labelCls}>
+              Año
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={anio}
@@ -436,7 +536,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Uso</label>
+            <label className={labelCls}>
+              Uso
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={uso}
@@ -546,6 +649,15 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                   placeholder: "Ej. AUT-120-001-07",
                   buscar: buscarElPotosi,
                 },
+                {
+                  id: "generalseguros" as const,
+                  etiqueta: "General de Seguros (claveGs)",
+                  valor: claveGs,
+                  onChange: (v: string) =>
+                    setClaveGs(v.replace(/[^0-9]/g, "").slice(0, 10)),
+                  placeholder: "Ej. 10598",
+                  buscar: buscarGs,
+                },
               ] as const
             ).map((c) => (
               <div key={c.id}>
@@ -635,7 +747,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Fecha de nacimiento</label>
+            <label className={labelCls}>
+              Fecha de nacimiento
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               type="date"
               className={inputCls}
@@ -645,7 +760,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             />
           </div>
           <div>
-            <label className={labelCls}>Género</label>
+            <label className={labelCls}>
+              Género
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <select
               className={inputCls}
               value={genero}
@@ -656,7 +774,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             </select>
           </div>
           <div>
-            <label className={labelCls}>Código postal</label>
+            <label className={labelCls}>
+              Código postal
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
             <input
               className={inputCls}
               value={cpVehiculo}
@@ -701,7 +822,10 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
           comparativo.
         </p>
         <div className="max-w-xs">
-          <label className={labelCls}>Forma de pago</label>
+          <label className={labelCls}>
+              Forma de pago
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
           <select
             className={inputCls}
             value={formaPago}

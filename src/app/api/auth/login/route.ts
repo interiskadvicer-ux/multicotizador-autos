@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { buscarUsuarioPorEmail, verifyPassword } from "@/lib/auth";
 import { crearToken, COOKIE_SESION, MAX_AGE_SESION } from "@/lib/session";
 import { registrarActividad } from "@/lib/activity";
+import { solicitudPorEmail } from "@/lib/agentes";
 import type { Rol } from "@/domain/admin";
 
 export async function POST(req: Request) {
@@ -24,6 +25,24 @@ export async function POST(req: Request) {
 
   const row = buscarUsuarioPorEmail(email);
   const ok = row ? await verifyPassword(password, row.password_hash) : false;
+
+  if (!row) {
+    const solicitud = solicitudPorEmail(email);
+    if (solicitud && solicitud.estado !== "AUTORIZADA") {
+      const okSolicitud = await verifyPassword(password, solicitud.password_hash);
+      if (okSolicitud) {
+        return NextResponse.json(
+          {
+            error:
+              solicitud.estado === "PENDIENTE"
+                ? "Tu registro como agente está en revisión. Te avisaremos cuando sea autorizado."
+                : "Tu solicitud de registro no fue autorizada. Contacta al administrador.",
+          },
+          { status: 403 },
+        );
+      }
+    }
+  }
 
   if (!row || !ok) {
     return NextResponse.json(
