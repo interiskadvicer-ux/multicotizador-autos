@@ -91,19 +91,61 @@ async function versiones(idSubmarca: string, anio: number): Promise<Entrada[]> {
   return entradas(xml, "versiones", "amis", "descripcion");
 }
 
+// GS agrupa marcas: Jeep, Dodge y RAM vienen en CHRYSLER ("JEEP GRAND
+// CHEROKEE"), Chevrolet y GMC en GENERAL MOTORS, MINI en BMW.
+const MARCAS_AGRUPADAS: Record<string, string> = {
+  JEEP: "CHRYSLER",
+  DODGE: "CHRYSLER",
+  RAM: "CHRYSLER",
+  CHEVROLET: "GENERAL MOTORS",
+  GMC: "GENERAL MOTORS",
+  PONTIAC: "GENERAL MOTORS",
+  MINI: "BMW",
+};
+
+function marcaGs(entradas: Entrada[], buscada: string): Entrada | undefined {
+  const exacta = buscarEquivalente(entradas, buscada);
+  if (exacta) return exacta;
+  const agrupada = MARCAS_AGRUPADAS[soloAlfanumerico(buscada)];
+  return agrupada ? buscarEquivalente(entradas, agrupada) : undefined;
+}
+
+// Submarcas de GS que corresponden al modelo buscado, sin el prefijo de marca
+// ("JEEP CHEROKEE SPORT", "MAZDA 2" → "2") ni "NUEVO". Si hay coincidencia
+// exacta se usa solo esa; si no, todas las que empiezan con el modelo
+// ("JETTA" → "JETTA A7", "JETTA CLASICO"…); la versión se filtra por año.
+export function submarcasGs(lista: Entrada[], buscada: string, marca: string): Entrada[] {
+  const prefijos = [soloAlfanumerico(marca), "NUEVO", "NEW"].filter(Boolean);
+  const sinPrefijo = (nombre: string) => {
+    let n = soloAlfanumerico(nombre);
+    for (const p of prefijos) if (n.startsWith(p) && n.length > p.length) n = n.slice(p.length);
+    return n;
+  };
+  const objetivos = Array.from(new Set([soloAlfanumerico(buscada), sinPrefijo(buscada)])).filter(
+    Boolean,
+  );
+  const nombres = lista.map((e) => ({ e, n: sinPrefijo(e.nombre) }));
+  const exactas = nombres.filter(({ n }) => objetivos.includes(n));
+  if (exactas.length) return exactas.map(({ e }) => e);
+  return nombres
+    .filter(({ n }) => n && objetivos.some((o) => n.startsWith(o)))
+    .slice(0, 8)
+    .map(({ e }) => e);
+}
+
 export async function buscarVehiculos(filtros: BusquedaVehiculoGs): Promise<VehiculoGs[]> {
-  const marca = buscarEquivalente(await marcas(), filtros.marca);
+  const marca = marcaGs(await marcas(), filtros.marca);
   if (!marca) return [];
   const lista = await submarcas(marca.id);
   const elegidas = filtros.submarca
-    ? [buscarEquivalente(lista, filtros.submarca)].filter((s): s is Entrada => Boolean(s))
+    ? submarcasGs(lista, filtros.submarca, filtros.marca)
     : lista;
   const porSubmarca = await Promise.all(
     elegidas.map(async (sub) =>
       (await versiones(sub.id, filtros.anio)).map((v) => ({
         claveGs: v.id,
         marca: marca.nombre,
-        submarca: sub.nombre,
+        submarca: sub.nombre.trim(),
         anio: filtros.anio,
         descripcion: v.nombre,
       })),
