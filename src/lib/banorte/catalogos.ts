@@ -123,7 +123,41 @@ function submarcaEquivalente(
   const prefijos = disponibles
     .filter((s) => objetivo.startsWith(soloAlfanumerico(s)))
     .sort((a, b) => soloAlfanumerico(b).length - soloAlfanumerico(a).length);
-  return prefijos[0];
+  if (prefijos[0]) return prefijos[0];
+
+  // "Grand Cherokee" -> "CHEROKEE": Banorte agrupa algunos modelos hermanos
+  // bajo una sola submarca; `separarModelosHermanos` filtra las versiones.
+  return disponibles
+    .filter((s) => objetivo.endsWith(soloAlfanumerico(s)))
+    .sort((a, b) => soloAlfanumerico(b).length - soloAlfanumerico(a).length)[0];
+}
+
+// Banorte mete modelos hermanos en una misma submarca: en CHEROKEE vienen
+// también las "GRAND CHEROKEE …" y "G.CHEROKEE …". Con los modelos de la marca
+// que manejan las demás aseguradoras (p. ej. GRAND CHEROKEE) se identifica a
+// qué modelo pertenece cada versión y se dejan solo las del modelo buscado.
+export function separarModelosHermanos(
+  vehiculos: VehiculoBanorte[],
+  buscada: string,
+  modelosMarca: string[],
+): VehiculoBanorte[] {
+  const objetivo = soloAlfanumerico(buscada);
+  return vehiculos.filter((v) => {
+    const sub = soloAlfanumerico(v.submarca);
+    if (!sub || !objetivo.endsWith(sub)) return true;
+    const buscado = objetivo.slice(0, objetivo.length - sub.length);
+    const hermanos = [buscada, ...modelosMarca]
+      .map(soloAlfanumerico)
+      .filter((m) => m.length > sub.length && m.endsWith(sub))
+      .map((m) => m.slice(0, m.length - sub.length));
+    const desc = soloAlfanumerico(v.descripcion);
+    const modelo =
+      hermanos
+        .sort((a, b) => b.length - a.length)
+        .find((p) => desc.startsWith(p + sub) || desc.startsWith(p[0] + sub)) ??
+      "";
+    return modelo === buscado;
+  });
 }
 
 // Busca versiones de vehículo. El filtro por submarca es obligatorio en la

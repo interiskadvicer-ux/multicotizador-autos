@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { requireApiSesion } from "@/lib/api-auth";
 import {
   buscarVehiculos,
+  separarModelosHermanos,
   type BusquedaVehiculoBanorte,
 } from "@/lib/banorte/catalogos";
+import { modelosVehiculo } from "@/lib/vehiculos-catalogo";
 import { BanorteNoConfigurado } from "@/lib/banorte/client";
 
 // Búsqueda en el catálogo de vehículos de Banorte para obtener la
@@ -29,7 +31,14 @@ export async function GET(req: Request) {
   };
 
   try {
-    const vehiculos = await buscarVehiculos(filtros);
+    const encontrados = await buscarVehiculos(filtros);
+    const vehiculos = filtros.submarca
+      ? separarModelosHermanos(
+          encontrados,
+          filtros.submarca,
+          await modelosVehiculo(marca, filtros.anio).catch(() => []),
+        )
+      : encontrados;
     return NextResponse.json({ vehiculos });
   } catch (err) {
     if (err instanceof BanorteNoConfigurado) {
