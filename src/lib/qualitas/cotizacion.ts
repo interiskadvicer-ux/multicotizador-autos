@@ -131,11 +131,10 @@ function construirCoberturasDesdeRespuesta(
   });
 }
 
-// Coberturas del negocio (XML de ejemplo de Quálitas para el negocio 08849):
-// cada paquete se envía con sus coberturas y deducibles explícitos; si no, el
-// WS aplica sus valores por omisión (DM 5%, RT 10%, RC sin deducible) y la
-// prima no cuadra con la del negocio. Las coberturas personalizadas sólo
-// sustituyen deducibles y sumas de DM, RT, RC y GM.
+// Coberturas del negocio 08849: cada paquete se envía con sus coberturas y
+// deducibles explícitos (por defecto DM 5%, RT 10% y RC sin deducible). Las
+// coberturas personalizadas sólo sustituyen deducibles y sumas de DM, RT, RC
+// y GM.
 const COBERTURAS_POR_PAQUETE: Record<Paquete, string[]> = {
   AMPLIA: ["1", "3", "4", "5", "6", "7", "11", "14", "22", "47"],
   LIMITADA: ["3", "4", "5", "6", "7", "11", "14", "22", "47"],
@@ -145,9 +144,9 @@ const COBERTURAS_POR_PAQUETE: Record<Paquete, string[]> = {
 export function xmlCoberturasNegocio(request: CotizacionRequest): string {
   const cob = request.coberturasPersonalizadas ?? {};
   const valores: Record<string, [number, string, number]> = {
-    "1": [0, "0", cob.deducibleDanosMateriales ?? 20],
-    "3": [0, "0", cob.deducibleRoboTotal ?? 20],
-    "4": [cob.responsabilidadCivil ?? 3_000_000, "0", 50],
+    "1": [0, "0", cob.deducibleDanosMateriales ?? 5],
+    "3": [0, "0", cob.deducibleRoboTotal ?? 10],
+    "4": [cob.responsabilidadCivil ?? 3_000_000, "0", 0],
     "5": [cob.gastosMedicos ?? 200_000, "0", 0],
     "6": [100_000, "0", 0],
     "47": [1_000_000, "14", 0],
