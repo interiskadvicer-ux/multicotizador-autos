@@ -10,7 +10,7 @@ export const MARCAS: Record<string, string[]> = {
   Toyota: ["Corolla", "Yaris", "RAV4", "Hilux", "Camry", "Avanza"],
   Kia: ["Rio", "Forte", "Sportage", "Sorento", "Seltos"],
   Honda: ["Civic", "City", "CR-V", "HR-V", "BR-V"],
-  Mazda: ["Mazda 2", "Mazda 3", "CX-3", "CX-5", "CX-30", "CX-9"],
+  Mazda: ["Mazda 2", "Mazda 3", "CX-3", "CX-5", "CX-30", "CX-9", "MX-5"],
   Ford: ["Figo", "Escape", "Ranger", "F-150", "Bronco Sport"],
 };
 

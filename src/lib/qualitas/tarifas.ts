@@ -70,7 +70,20 @@ export interface BusquedaVehiculo {
 
 // Consulta el catálogo de vehículos de Quálitas. Lanza QBCenterNoConfigurado
 // si no hay usuario de QBCenter configurado.
+// Quálitas escribe algunas líneas sin guion ("MX5", "CX30"): si la línea tal
+// cual no trae resultados, se reintenta solo con letras y números.
 export async function buscarVehiculos(
+  filtros: BusquedaVehiculo,
+): Promise<VehiculoQualitas[]> {
+  const encontrados = await consultarTarifas(filtros);
+  const tipoCompacto = filtros.tipo?.replace(/[^A-Za-z0-9]/g, "");
+  if (encontrados.length > 0 || !tipoCompacto || tipoCompacto === filtros.tipo) {
+    return encontrados;
+  }
+  return consultarTarifas({ ...filtros, tipo: tipoCompacto });
+}
+
+async function consultarTarifas(
   filtros: BusquedaVehiculo,
 ): Promise<VehiculoQualitas[]> {
   const cfg = getQualitasConfig();
