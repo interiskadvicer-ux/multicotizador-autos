@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CotizacionRequest } from "@/domain/types";
 import { ANIOS, FORMAS_PAGO, MARCAS, PAQUETES } from "@/domain/catalogs";
 import type { VehiculoQualitas } from "@/lib/qualitas/tarifas";
@@ -32,8 +32,6 @@ interface OpcionVehiculo {
   etiqueta: string;
   version?: string;
 }
-
-const marcas = Object.keys(MARCAS);
 
 const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
   "qualitas",
@@ -98,8 +96,11 @@ function masParecida(
 }
 
 export default function QuoteForm({ onCotizar, cargando }: Props) {
-  const [marca, setMarca] = useState(marcas[0]);
-  const [modelo, setModelo] = useState(MARCAS[marcas[0]][0]);
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [modelos, setModelos] = useState<string[]>([]);
+  const [cargandoModelos, setCargandoModelos] = useState(false);
+  const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
   const [anio, setAnio] = useState<number>(ANIOS[0]);
   const [version, setVersion] = useState("");
   const [uso, setUso] = useState<"PARTICULAR" | "COMERCIAL">("PARTICULAR");
@@ -132,7 +133,35 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     Record<string, OpcionVehiculo[]>
   >({});
 
-  const modelos = useMemo(() => MARCAS[marca] ?? [], [marca]);
+  useEffect(() => {
+    fetch("/api/vehiculos/marcas")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMarcas(d?.marcas?.length ? d.marcas : Object.keys(MARCAS)))
+      .catch(() => setMarcas(Object.keys(MARCAS)));
+  }, []);
+
+  useEffect(() => {
+    if (!marca) {
+      setModelos([]);
+      return;
+    }
+    let vigente = true;
+    setCargandoModelos(true);
+    const params = new URLSearchParams({ marca, anio: String(anio) });
+    fetch(`/api/vehiculos/modelos?${params.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vigente) return;
+        const lista: string[] = d?.modelos ?? [];
+        setModelos(lista);
+        setModelo((actual) => (lista.includes(actual) ? actual : ""));
+      })
+      .catch(() => vigente && setModelos([]))
+      .finally(() => vigente && setCargandoModelos(false));
+    return () => {
+      vigente = false;
+    };
+  }, [marca, anio]);
 
   async function buscarCatalogo(
     aseguradora: AseguradoraCatalogo,
@@ -140,6 +169,13 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     url: string,
     normalizar: (data: { vehiculos?: unknown[] }) => OpcionVehiculo[],
   ) {
+    if (!marca || !modelo) {
+      setCatError((e) => ({
+        ...e,
+        [aseguradora]: "Primero elige la marca y el modelo.",
+      }));
+      return;
+    }
     setCatBuscando((b) => ({ ...b, [aseguradora]: true }));
     setCatError((e) => ({ ...e, [aseguradora]: "" }));
     setCatResultados((r) => ({ ...r, [aseguradora]: [] }));
@@ -417,12 +453,16 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
             <select
               className={inputCls}
               value={marca}
+              required
               onChange={(e) => {
                 setMarca(e.target.value);
-                setModelo(MARCAS[e.target.value][0]);
+                setModelo("");
                 limpiarClaves();
               }}
             >
+              <option value="" disabled>
+                {marcas.length ? "Selecciona la marca" : "Cargando marcas…"}
+              </option>
               {marcas.map((m) => (
                 <option key={m}>{m}</option>
               ))}
@@ -433,18 +473,40 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
               Modelo / Línea
               <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
             </label>
-            <select
-              className={inputCls}
-              value={modelo}
-              onChange={(e) => {
-                setModelo(e.target.value);
-                limpiarClaves();
-              }}
-            >
-              {modelos.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            {marca && !cargandoModelos && modelos.length === 0 ? (
+              <input
+                className={inputCls}
+                value={modelo}
+                required
+                placeholder="Escribe el modelo"
+                onChange={(e) => {
+                  setModelo(e.target.value);
+                  limpiarClaves();
+                }}
+              />
+            ) : (
+              <select
+                className={inputCls}
+                value={modelo}
+                required
+                disabled={!marca || cargandoModelos}
+                onChange={(e) => {
+                  setModelo(e.target.value);
+                  limpiarClaves();
+                }}
+              >
+                <option value="" disabled>
+                  {!marca
+                    ? "Primero elige la marca"
+                    : cargandoModelos
+                      ? "Cargando modelos…"
+                      : "Selecciona el modelo"}
+                </option>
+                {modelos.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className={labelCls}>
