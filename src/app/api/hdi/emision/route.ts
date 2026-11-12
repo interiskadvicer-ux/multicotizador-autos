@@ -5,6 +5,7 @@ import { registrarActividad } from "@/lib/activity";
 import { resolverDescuento } from "@/insurers/base";
 import { hdi } from "@/insurers/hdi";
 import { HdiNoConfigurado } from "@/lib/hdi/client";
+import { emisionHabilitada } from "@/lib/hdi/config";
 import {
   CONDUCTO_HDI,
   catalogosEmisionHdi,
@@ -14,6 +15,12 @@ import {
 } from "@/lib/hdi/emision";
 
 const ROLES = ["ADMIN", "POLIZAS"] as const;
+
+const NO_HABILITADA = () =>
+  NextResponse.json(
+    { error: "La emisión con HDI no está habilitada." },
+    { status: 403 },
+  );
 
 function errorHdi(err: unknown) {
   if (err instanceof HdiNoConfigurado)
@@ -28,6 +35,7 @@ function errorHdi(err: unknown) {
 export async function GET(req: Request) {
   const { error } = await requireApiSesion([...ROLES]);
   if (error) return error;
+  if (!emisionHabilitada()) return NO_HABILITADA();
   const cp = new URL(req.url).searchParams.get("cp");
   try {
     if (cp !== null) {
@@ -85,6 +93,7 @@ function esEmisionValida(b: unknown): b is {
 export async function POST(req: Request) {
   const { sesion, error } = await requireApiSesion([...ROLES]);
   if (error) return error;
+  if (!emisionHabilitada()) return NO_HABILITADA();
   let body: unknown;
   try {
     body = await req.json();

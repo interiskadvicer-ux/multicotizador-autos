@@ -38,3 +38,8 @@ export function credencialesConfiguradas(cfg: HdiConfig): boolean {
 export function cotizacionRealHabilitada(): boolean {
   return process.env.HDI_COTIZACION_REAL !== "false";
 }
+
+// HDI certificó solo cotización y guardado; la emisión se habilita aparte.
+export function emisionHabilitada(): boolean {
+  return process.env.NEXT_PUBLIC_HDI_EMISION_HABILITADA === "true";
+}

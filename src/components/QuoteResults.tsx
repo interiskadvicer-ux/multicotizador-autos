@@ -15,6 +15,7 @@ import { ASEGURADORAS } from "@/insurers/registry";
 import { formatMXN } from "@/lib/format";
 import { generarPdfCotizacion } from "@/lib/pdf";
 import EmisionHdi from "./EmisionHdi";
+import { emisionHabilitada } from "@/lib/hdi/config";
 
 interface Props {
   resultados: CotizacionResultado[];
@@ -460,6 +461,7 @@ function Detalle({
   const label = COLUMNAS.find((c) => c.paquete === resultado.paquete)?.label;
   const emiteHdi =
     resultado.aseguradoraId === "hdi" &&
+    emisionHabilitada() &&
     resultado.origen === "real" &&
     resultado.status === "success" &&
     request !== null;
