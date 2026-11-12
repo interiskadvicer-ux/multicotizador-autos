@@ -19,8 +19,9 @@ export const generalSeguros: InsurerAdapter = {
   nombre: "General de Seguros",
   // Descuento máximo configurado por GS para el negocio 52-442.
   descuentoDefault: 35,
-  // Token + cotización con y sin descuento (con reintentos si excede el tope).
-  timeoutMs: 45_000,
+  // Token + cotización con y sin descuento (con reintentos si excede el tope);
+  // en producción GS tarda más de 45 s.
+  timeoutMs: 90_000,
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
     const claveGs = request.vehiculo.claveGs?.trim();

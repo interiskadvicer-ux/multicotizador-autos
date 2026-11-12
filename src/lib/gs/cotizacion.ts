@@ -224,6 +224,39 @@ async function obtenerCoberturas(
   }));
 }
 
+// Los paquetes (Amplia, Limitada, RC) se cotizan en paralelo y GS devuelve
+// todos en una sola cotización; se comparte la misma consulta para no
+// saturar su servicio (en paralelo responde con errores de base de datos).
+const COMPARTIDA_MS = 2 * 60 * 1000;
+const compartidas = new Map<string, { expira: number; valor: Promise<CotizacionGs> }>();
+
+function cotizacionCompartida(
+  request: CotizacionRequest,
+  claveGs: string,
+  descuento: number,
+): Promise<CotizacionGs> {
+  const ahora = Date.now();
+  compartidas.forEach((v, k) => {
+    if (v.expira <= ahora) compartidas.delete(k);
+  });
+  const clave = JSON.stringify([
+    claveGs,
+    descuento,
+    request.vehiculo,
+    request.conductor,
+    request.coberturasPersonalizadas ?? null,
+  ]);
+  const hit = compartidas.get(clave);
+  if (hit) return hit.valor;
+  const valor = generarCotizacion(request, claveGs, descuento);
+  const entrada = { expira: ahora + COMPARTIDA_MS, valor };
+  compartidas.set(clave, entrada);
+  valor.catch(() => {
+    if (compartidas.get(clave) === entrada) compartidas.delete(clave);
+  });
+  return valor;
+}
+
 // Cotiza con el descuento solicitado; si General de Seguros lo rechaza por
 // exceder el autorizado, lo reduce hasta encontrar uno aceptado.
 async function cotizarConDescuento(
@@ -235,7 +268,7 @@ async function cotizarConDescuento(
   let intento = descuento;
   for (let i = 0; ; i++) {
     try {
-      const cotizacion = await generarCotizacion(request, claveGs, intento);
+      const cotizacion = await cotizacionCompartida(request, claveGs, intento);
       if (intento !== descuento) {
         ajustes.push(
           `Descuento: General de Seguros no autorizó ${descuento}%, se aplicó ${intento}%.`,
@@ -334,7 +367,7 @@ export async function cotizarGsReal(
   try {
     const ajustes: string[] = [];
     const [lista, final] = await Promise.all([
-      generarCotizacion(request, claveGs, 0),
+      cotizacionCompartida(request, claveGs, 0),
       descuento > 0
         ? cotizarConDescuento(request, claveGs, descuento, ajustes)
         : Promise.resolve(undefined),
