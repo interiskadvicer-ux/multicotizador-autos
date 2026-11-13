@@ -22,6 +22,7 @@ export const generalSeguros: InsurerAdapter = {
   // Token + cotización con y sin descuento (con reintentos si excede el tope);
   // en producción GS tarda más de 45 s.
   timeoutMs: 90_000,
+  paquetes: ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"],
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
     const claveGs = request.vehiculo.claveGs?.trim();

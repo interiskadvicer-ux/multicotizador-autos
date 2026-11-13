@@ -2,7 +2,7 @@
 // Una sola llamada devuelve todos los paquetes con sus formas de pago (y a veces
 // sus coberturas); se cotiza con y sin descuento para mostrar la prima de lista.
 
-import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
+import type { Paquete } from "@/domain/types";
 import type {
   Cobertura,
   CoberturasPersonalizadas,
@@ -26,7 +26,11 @@ import {
 const SERVICIO = "cotizacionEmisionWS";
 const MODULO = "cotizacionEmision";
 
-export const PAQUETE_GS: Record<PaqueteEstandar, RegExp> = {
+// GS nombra sus paquetes "PRESTIGIO", "CONFORT AMPLIA", "CONFORT LIMITADA" y
+// "CONFORT BASICA"; Prestigio es Confort Amplia más robo parcial, asalto,
+// objetos personales y daños por tercero sin seguro.
+export const PAQUETE_GS: Record<Paquete, RegExp> = {
+  AMPLIA_PLUS: /PRESTIGIO/i,
   AMPLIA: /AMPLIA/i,
   LIMITADA: /LIMITADA/i,
   RC: /\bRC\b|RESPONSABILIDAD CIVIL|B[AÁ]SIC/i,
@@ -297,11 +301,23 @@ function sumaAsegurada(c: CoberturaGs, nombre: string): string {
 
 function coberturas(lista: CoberturaGs[]): Cobertura[] {
   const porNombre = new Map<string, CoberturaGs>();
+  const adicionales: Cobertura[] = [];
   for (const c of [...lista].sort((a, b) => a.orden - b.orden)) {
     const hom = COBERTURA_HOMOLOGADA.find(([re]) => re.test(c.descripcion));
     if (hom && !porNombre.has(hom[1])) porNombre.set(hom[1], c);
+    else if (c.descripcion)
+      adicionales.push({
+        nombre: c.descripcion,
+        incluida: true,
+        sumaAsegurada: porcentaje(c.monto)
+          ? "Valor comercial"
+          : /SIGUE/i.test(c.descripcion) && num(c.monto)
+            ? `${num(c.monto)} días`
+            : sumaAsegurada(c, c.descripcion),
+        deducible: porcentaje(c.deducible) ?? porcentaje(c.monto) ?? "N/A",
+      });
   }
-  return ORDEN_COBERTURAS.map((nombre) => {
+  const homologadas = ORDEN_COBERTURAS.map((nombre): Cobertura => {
     const c = porNombre.get(nombre);
     if (!c) return { nombre, incluida: false, deducible: "N/A" };
     return {
@@ -311,6 +327,7 @@ function coberturas(lista: CoberturaGs[]): Cobertura[] {
       deducible: porcentaje(c.deducible) ?? porcentaje(c.monto) ?? "N/A",
     };
   });
+  return [...homologadas, ...adicionales];
 }
 
 // Compara lo que devolvió General de Seguros con lo que pidió el broker y
@@ -375,7 +392,7 @@ export async function cotizarGsReal(
     const conDescuento = final ?? { descuento: 0, cotizacion: lista };
 
     const elegir = (c: CotizacionGs) =>
-      c.paquetes.find((p) => PAQUETE_GS[paqueteEstandar(request.paquete)].test(p.nombre));
+      c.paquetes.find((p) => PAQUETE_GS[request.paquete].test(p.nombre));
     const paquete = elegir(conDescuento.cotizacion);
     const paqueteLista = elegir(lista);
     if (!paquete) {
