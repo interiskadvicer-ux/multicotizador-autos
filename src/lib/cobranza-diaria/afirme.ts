@@ -65,6 +65,7 @@ export function aplicarRecibos(
   polizaId: number,
   recibos: Recibo[],
   fechaCorte: string,
+  aseguradora = ASEGURADORA,
 ): { pagosNuevos: number; cancelada: boolean } {
   return db.transaction(() => {
     const previos = new Map(
@@ -104,12 +105,14 @@ export function aplicarRecibos(
          VALUES (?, ?, ?, 'WS_ASEGURADORA', ?, ?)`,
       ).run(
         polizaId,
-        fechaPagoDetectada(r, previo, fechaCorte),
+        r.fechaPago || fechaPagoDetectada(r, previo, fechaCorte),
         redondear(r.primaTotal),
         r.idRecibo,
-        previo
-          ? "Pago detectado en la consulta diaria a Afirme (Afirme no informa la fecha exacta)."
-          : "Carga inicial desde Afirme: fecha aproximada al inicio del periodo del recibo.",
+        r.fechaPago
+          ? `Pago informado por ${aseguradora} en la consulta diaria.`
+          : previo
+            ? `Pago detectado en la consulta diaria a ${aseguradora} (no informa la fecha exacta).`
+            : `Carga inicial desde ${aseguradora}: fecha aproximada al inicio del periodo del recibo.`,
       );
       pagosNuevos++;
     }

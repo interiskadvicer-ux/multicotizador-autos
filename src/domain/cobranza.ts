@@ -16,6 +16,8 @@ export interface Recibo {
   vigenciaInicio: string | null;
   vigenciaFin: string | null;
   fechaVencimiento: string | null;
+  // Solo cuando la aseguradora informa la fecha en que se pagó.
+  fechaPago?: string | null;
 }
 
 // OK: se consultó; SIN_CONFIGURAR: faltan accesos o el conector aún no existe.

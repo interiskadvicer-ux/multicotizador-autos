@@ -7,6 +7,7 @@ import path from "node:path";
 import { db, directorioArchivos } from "@/lib/db";
 import type { ResultadoFuente } from "@/domain/cobranza";
 import { sincronizarAfirme } from "./afirme";
+import { sincronizarHdi } from "./hdi";
 import { armarReporte, excelReporte, resumenTexto, type ReporteCobranza } from "./reporte";
 import { correoConfigurado, enviarReporte } from "./correo";
 
@@ -32,7 +33,7 @@ export const FUENTES: Fuente[] = [
   pendiente("Quálitas", SIN_PORTAL),
   pendiente("Banorte", SIN_PORTAL),
   pendiente("El Potosí", SIN_PORTAL),
-  pendiente("HDI", SIN_PORTAL),
+  sincronizarHdi,
   pendiente("General de Seguros", SIN_PORTAL),
 ];
 

@@ -26,6 +26,7 @@ Bitácora: `journalctl -u cobranza-diaria`.
 | `COBRANZA_CORREO_DE` | Remitente (por omisión `SMTP_USER`) |
 | `COBRANZA_DIAS_GRACIA` | Días de gracia para pagar un recibo (30) |
 | `COBRANZA_ZONA_HORARIA` | Zona para calcular "ayer" (America/Mexico_City) |
+| `HDI_PORTAL_USUARIO`, `HDI_PORTAL_PASSWORD` | Acceso al portal de agentes HDI (SmartOffice) |
 
 ## Aseguradoras
 
@@ -33,4 +34,6 @@ Bitácora: `journalctl -u cobranza-diaria`.
 |---|---|---|
 | Afirme | Web service `getRecibosPolizaActual` por póliza | Listo |
 | Zurich | Web service `WSInfoRecibosPago` | Falta el manual del servicio |
-| Quálitas, Banorte, El Potosí, HDI, General de Seguros | Portal de agentes | Faltan accesos |
+| HDI | Portal SmartOffice (API JSON, sin navegador): pólizas y recibos con fecha de pago | Listo; da de alta en Pólizas las que falten |
+| Banorte, General de Seguros | Portal de agentes | Pendiente |
+| Quálitas, El Potosí | Portal con reCAPTCHA / bloqueo a robots | Por correo o carga manual |
