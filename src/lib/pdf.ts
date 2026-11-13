@@ -32,6 +32,7 @@ type DocConTabla = jsPDF & { lastAutoTable?: { finalY: number } };
 export function generarPdfCotizacion(
   request: CotizacionRequest,
   resultados: CotizacionResultado[],
+  soloPaquetes?: readonly Paquete[],
 ): void {
   const doc = new jsPDF({
     orientation: "landscape",
@@ -81,7 +82,12 @@ export function generarPdfCotizacion(
     y += 5;
   }
 
-  const exitosas = resultados.filter((r) => r.status === "success" && r.prima);
+  const exitosas = resultados.filter(
+    (r) =>
+      r.status === "success" &&
+      r.prima &&
+      (!soloPaquetes || soloPaquetes.includes(r.paquete)),
+  );
   const paquetes = ORDEN_PAQUETES.filter((p) =>
     exitosas.some((r) => r.paquete === p),
   );

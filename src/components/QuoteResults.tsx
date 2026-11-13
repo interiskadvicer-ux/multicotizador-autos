@@ -58,6 +58,9 @@ export default function QuoteResults({
   onElegir,
 }: Props) {
   const [detalle, setDetalle] = useState<Celda | null>(null);
+  const [paquetesPdf, setPaquetesPdf] = useState<Paquete[]>(
+    COLUMNAS.map((c) => c.paquete),
+  );
 
   const porCelda = new Map<string, CotizacionResultado>();
   for (const r of resultados)
@@ -81,6 +84,12 @@ export default function QuoteResults({
   });
 
   const exitosas = resultados.filter((r) => r.status === "success");
+  const columnasConPrima = COLUMNAS.filter((c) =>
+    exitosas.some((r) => r.paquete === c.paquete),
+  );
+  const paquetesElegidosPdf = columnasConPrima
+    .map((c) => c.paquete)
+    .filter((p) => paquetesPdf.includes(p));
   const seleccionado = detalle
     ? celda(detalle.aseguradoraId, detalle.paquete)
     : undefined;
@@ -97,13 +106,46 @@ export default function QuoteResults({
           </span>
         </div>
         {request && exitosas.length > 0 && (
-          <button
-            type="button"
-            onClick={() => generarPdfCotizacion(request, resultados)}
-            className="inline-flex items-center gap-2 rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50"
-          >
-            Descargar PDF para el cliente
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-700">
+              <legend className="sr-only">Coberturas en el PDF</legend>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                En el PDF:
+              </span>
+              {columnasConPrima.map((c) => (
+                <label key={c.paquete} className="inline-flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-sky-600"
+                    checked={paquetesPdf.includes(c.paquete)}
+                    onChange={(e) =>
+                      setPaquetesPdf((actual) =>
+                        e.target.checked
+                          ? [...actual, c.paquete]
+                          : actual.filter((p) => p !== c.paquete),
+                      )
+                    }
+                  />
+                  {c.label}
+                </label>
+              ))}
+            </fieldset>
+            <button
+              type="button"
+              disabled={paquetesElegidosPdf.length === 0}
+              title={
+                paquetesElegidosPdf.length === 0
+                  ? "Elige al menos una cobertura para el PDF."
+                  : undefined
+              }
+              onClick={() =>
+                generarPdfCotizacion(request, resultados, paquetesElegidosPdf)
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Descargar PDF para el cliente
+            </button>
+          </div>
         )}
       </div>
 
