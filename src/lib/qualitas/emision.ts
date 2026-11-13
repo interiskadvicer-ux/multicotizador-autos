@@ -3,6 +3,7 @@
 // esté liberado; por eso el ambiente de emisión es independiente del de
 // cotización y por omisión es "pruebas".
 
+import { paqueteEstandar } from "@/domain/types";
 import type { CotizacionGuardada, Contratante } from "@/lib/cotizaciones";
 import { WS_EMISION_URL, getQualitasConfig, type Ambiente } from "./config";
 import {
@@ -174,7 +175,7 @@ export function construirXmlEmision(
     `<Modelo>${request.vehiculo.anio}</Modelo>` +
     "<DescripcionVehiculo/>" +
     `<Uso>${uso}</Uso><Servicio>01</Servicio>` +
-    `<Paquete>${PAQUETE_A_QUALITAS[request.paquete]}</Paquete>` +
+    `<Paquete>${PAQUETE_A_QUALITAS[paqueteEstandar(request.paquete)]}</Paquete>` +
     `<Motor>${escapeXml(v.motor.trim().toUpperCase())}</Motor>` +
     `<Serie>${escapeXml(v.serie.trim().toUpperCase())}</Serie>` +
     xmlCoberturasNegocio(request) +

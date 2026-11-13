@@ -8,8 +8,21 @@ export type TipoCarga = "VACIO" | "A" | "B";
 
 export type Genero = "M" | "F";
 
-// Paquetes estándar del mercado mexicano de autos.
-export type Paquete = "AMPLIA" | "LIMITADA" | "RC";
+// Paquetes estándar del mercado mexicano de autos. AMPLIA_PLUS es el paquete
+// más alto de cada aseguradora (p. ej. Integral Plus de Banorte); solo lo
+// cotizan las aseguradoras que lo declaran en `InsurerAdapter.paquetes`.
+export type PaqueteEstandar = "AMPLIA" | "LIMITADA" | "RC";
+export type Paquete = PaqueteEstandar | "AMPLIA_PLUS";
+
+export const PAQUETES_ESTANDAR: readonly Paquete[] = ["AMPLIA", "LIMITADA", "RC"];
+
+// Para integraciones que solo manejan los paquetes estándar.
+export function paqueteEstandar(p: Paquete): PaqueteEstandar {
+  if (p === "AMPLIA_PLUS") {
+    throw new Error("La aseguradora no ofrece un paquete superior a Amplia.");
+  }
+  return p;
+}
 
 export type FormaPago = "CONTADO" | "MENSUAL" | "TRIMESTRAL" | "SEMESTRAL";
 
@@ -126,6 +139,8 @@ export interface CotizacionResultado {
   // Milisegundos que tardó el web service en responder (útil para monitoreo).
   tiempoRespuestaMs?: number;
   error?: string;
+  // La aseguradora no maneja este paquete (se muestra "No disponible").
+  noOfrecido?: boolean;
   // Indica si la prima proviene de un web service real o de un cálculo
   // simulado. Permite señalar en la UI qué cotizaciones son reales.
   origen?: "real" | "simulado";

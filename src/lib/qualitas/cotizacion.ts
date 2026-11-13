@@ -2,12 +2,12 @@
 // Arma el XML <Movimientos> (TipoMovimiento=2 = cotización), lo envía al web
 // service y mapea la respuesta al modelo del multicotizador.
 
+import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
   CotizacionRequest,
   CotizacionResultado,
   DesglosePrima,
-  Paquete,
 } from "@/domain/types";
 import { getQualitasConfig } from "./config";
 import { escapeXml, extractAttr, extractTag, soapCall, unescapeXml } from "./soap";
@@ -20,7 +20,7 @@ const NS = "http://qualitas.com.mx/";
 export const USOS_VEHICULO = ["01", "05"] as const;
 
 // Paquete del multicotizador -> código de paquete Quálitas (Anexo 5).
-export const PAQUETE_A_QUALITAS: Record<Paquete, string> = {
+export const PAQUETE_A_QUALITAS: Record<PaqueteEstandar, string> = {
   AMPLIA: "01",
   LIMITADA: "03",
   RC: "04",
@@ -135,7 +135,7 @@ function construirCoberturasDesdeRespuesta(
 // deducibles explícitos (por defecto DM 5%, RT 10% y RC sin deducible). Las
 // coberturas personalizadas sólo sustituyen deducibles y sumas de DM, RT, RC
 // y GM.
-const COBERTURAS_POR_PAQUETE: Record<Paquete, string[]> = {
+const COBERTURAS_POR_PAQUETE: Record<PaqueteEstandar, string[]> = {
   AMPLIA: ["1", "3", "4", "5", "6", "7", "11", "14", "22", "47"],
   LIMITADA: ["3", "4", "5", "6", "7", "11", "14", "22", "47"],
   RC: ["4", "5", "6", "7", "11", "14", "22", "47"],
@@ -151,7 +151,7 @@ export function xmlCoberturasNegocio(request: CotizacionRequest): string {
     "6": [100_000, "0", 0],
     "47": [1_000_000, "14", 0],
   };
-  return COBERTURAS_POR_PAQUETE[request.paquete]
+  return COBERTURAS_POR_PAQUETE[paqueteEstandar(request.paquete)]
     .map((no) => {
       const [suma, tipoSuma, deducible] = valores[no] ?? [0, "0", 0];
       return (
@@ -176,7 +176,7 @@ function construirXmlCotizacion(
   const ambienteRegla = cfg.ambiente === "pruebas" ? "1" : "0";
   const cp = (request.vehiculo.cp || "").replace(/\D/g, "");
   const modelo = request.vehiculo.anio;
-  const paquete = PAQUETE_A_QUALITAS[request.paquete];
+  const paquete = PAQUETE_A_QUALITAS[paqueteEstandar(request.paquete)];
 
   return (
     '<?xml version="1.0" encoding="utf-8"?>' +

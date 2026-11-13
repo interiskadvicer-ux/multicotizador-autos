@@ -7,7 +7,7 @@ import { cotizarPaquetes } from "@/lib/quote-service";
 import { requireApiSesion } from "@/lib/api-auth";
 import { registrarActividad } from "@/lib/activity";
 
-const PAQUETES_VALIDOS = new Set(["AMPLIA", "LIMITADA", "RC"]);
+const PAQUETES_VALIDOS = new Set(["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"]);
 const TIPOS_CARGA = new Set(["VACIO", "A", "B"]);
 
 const LIMITES_COBERTURAS: Record<

@@ -5,6 +5,7 @@ import type {
   CotizacionResultado,
   DesglosePrima,
   Paquete,
+  PaqueteEstandar,
 } from "@/domain/types";
 
 // Configuración por aseguradora que alimenta el generador de cotización
@@ -21,7 +22,7 @@ export interface PricingConfig {
   // Recargo por pago fraccionado (porcentaje sobre prima neta).
   recargoFraccionado: Record<string, number>;
   // Suma asegurada de Responsabilidad Civil por paquete.
-  rcSumaAsegurada: Record<Paquete, string>;
+  rcSumaAsegurada: Record<PaqueteEstandar, string>;
   // Suma asegurada de Gastos Médicos Ocupantes.
   gastosMedicos: string;
   // Deducibles por paquete.
@@ -30,6 +31,11 @@ export interface PricingConfig {
 }
 
 const IVA = 0.16;
+
+// La simulación trata el paquete superior como una Amplia.
+function estandar(p: Paquete): PaqueteEstandar {
+  return p === "AMPLIA_PLUS" ? "AMPLIA" : p;
+}
 
 // Estima un valor comercial cuando el usuario no lo captura, en función del año.
 function estimarValor(anio: number): number {
@@ -79,10 +85,10 @@ function configEfectiva(
     ...cfg,
     rcSumaAsegurada: {
       ...cfg.rcSumaAsegurada,
-      [paquete]:
+      [estandar(paquete)]:
         cob.responsabilidadCivil !== undefined
           ? formatoMoneda(cob.responsabilidadCivil)
-          : cfg.rcSumaAsegurada[paquete],
+          : cfg.rcSumaAsegurada[estandar(paquete)],
     },
     gastosMedicos:
       cob.gastosMedicos !== undefined
@@ -109,14 +115,14 @@ function factorCoberturas(
   if (!cob) return 1;
   let f = 1;
   if (cob.responsabilidadCivil !== undefined) {
-    const rcBase = montoDesdeTexto(base.rcSumaAsegurada[paquete]);
+    const rcBase = montoDesdeTexto(base.rcSumaAsegurada[estandar(paquete)]);
     f *= 1 + 0.035 * ((cob.responsabilidadCivil - rcBase) / 1_000_000);
   }
   if (cob.gastosMedicos !== undefined && paquete !== "RC") {
     const gmBase = montoDesdeTexto(base.gastosMedicos);
     f *= 1 + 0.012 * ((cob.gastosMedicos - gmBase) / 100_000);
   }
-  if (cob.deducibleDanosMateriales !== undefined && paquete === "AMPLIA") {
+  if (cob.deducibleDanosMateriales !== undefined && estandar(paquete) === "AMPLIA") {
     const dBase = montoDesdeTexto(base.deducibleDanos);
     f *= 1 - 0.018 * (cob.deducibleDanosMateriales - dBase);
   }
@@ -131,7 +137,7 @@ export function construirCoberturas(
   cfg: PricingConfig,
   paquete: Paquete,
 ): Cobertura[] {
-  const amplia = paquete === "AMPLIA";
+  const amplia = estandar(paquete) === "AMPLIA";
   const limitada = paquete === "LIMITADA";
 
   return [
@@ -150,7 +156,7 @@ export function construirCoberturas(
     {
       nombre: "Responsabilidad Civil",
       incluida: true,
-      sumaAsegurada: cfg.rcSumaAsegurada[paquete],
+      sumaAsegurada: cfg.rcSumaAsegurada[estandar(paquete)],
       deducible: "N/A",
     },
     {
@@ -184,6 +190,7 @@ function calcularPrima(
 
   // Tasa base sobre el valor del vehículo según paquete.
   const tasaPaquete: Record<Paquete, number> = {
+    AMPLIA_PLUS: 0.049,
     AMPLIA: 0.045,
     LIMITADA: 0.028,
     RC: 0.012,
@@ -209,6 +216,7 @@ function calcularPrima(
 
   // Piso mínimo por paquete para evitar primas irreales en autos viejos.
   const minimo: Record<Paquete, number> = {
+    AMPLIA_PLUS: 4900,
     AMPLIA: 4500,
     LIMITADA: 2800,
     RC: 1500,

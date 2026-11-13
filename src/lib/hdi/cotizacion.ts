@@ -4,6 +4,7 @@
 // (descuento) y las sumas y deducibles elegidos. HDI devuelve la prima de
 // lista y el descuento por separado en <Totales>.
 
+import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
   CoberturasPersonalizadas,
@@ -11,7 +12,6 @@ import type {
   CotizacionResultado,
   DesglosePrima,
   FormaPago,
-  Paquete,
   TipoCarga,
   Uso,
 } from "@/domain/types";
@@ -33,7 +33,7 @@ import {
 } from "./catalogos";
 
 // Claves de paquete por tipo de vehículo (autos residentes / pick ups).
-const PAQUETE_HDI: Record<"auto" | "pickup", Record<Paquete, number>> = {
+const PAQUETE_HDI: Record<"auto" | "pickup", Record<PaqueteEstandar, number>> = {
   auto: { AMPLIA: 19, LIMITADA: 21, RC: 22 },
   pickup: { AMPLIA: 23, LIMITADA: 24, RC: 25 },
 };
@@ -526,7 +526,7 @@ export async function prepararCotizacionHdi(
     cp: request.vehiculo.cp,
     idFormaPago: await idFormaPago(request.formaPago),
     clavePaquete:
-      PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][request.paquete],
+      PAQUETE_HDI[categoria(vehiculo.tipoVehiculo)][paqueteEstandar(request.paquete)],
     inicio: fecha(inicio),
     fin: fecha(fin),
   };

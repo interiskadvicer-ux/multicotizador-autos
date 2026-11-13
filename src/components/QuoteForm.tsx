@@ -833,8 +833,8 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
           Cobertura y pago
         </h2>
         <p className="mb-3 text-xs text-slate-500">
-          Se cotizan los tres paquetes (Amplia, Limitada y Básica) con todas las
-          aseguradoras. El descuento por aseguradora se ajusta en el
+          Se cotizan los paquetes Amplia Plus, Amplia, Limitada y Básica con
+          todas las aseguradoras. El descuento por aseguradora se ajusta en el
           comparativo.
         </p>
         <div className="max-w-xs">

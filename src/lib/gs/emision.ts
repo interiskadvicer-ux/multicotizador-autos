@@ -3,6 +3,7 @@
 // elegidos y se descargan los documentos (carátula, recibos) de las ligas que
 // devuelve el servicio.
 
+import { paqueteEstandar } from "@/domain/types";
 import type { CotizacionRequest } from "@/domain/types";
 import type { CotizacionGuardada } from "@/lib/cotizaciones";
 import { escapeXml } from "@/lib/qualitas/soap";
@@ -149,7 +150,7 @@ export async function emitirGs(
   const cfg = getGsConfigEmision();
   const cotizacion = await generarCotizacion(request, claveGs, descuento, cfg);
   const paquete = cotizacion.paquetes.find((p) =>
-    PAQUETE_GS[request.paquete].test(p.nombre),
+    PAQUETE_GS[paqueteEstandar(request.paquete)].test(p.nombre),
   );
   const forma = paquete?.formas.find((f) =>
     FORMA_PAGO_GS[request.formaPago].test(f.nombre),

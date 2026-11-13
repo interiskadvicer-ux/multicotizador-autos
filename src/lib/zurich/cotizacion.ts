@@ -39,6 +39,7 @@ const FORMA_PAGO_ZURICH: Record<FormaPago, string> = {
 
 // Zurich nombra sus paquetes "055 Amplia Plus", "056 Limitada", "057 RC Autos".
 const PAQUETE_ZURICH: Record<Paquete, RegExp> = {
+  AMPLIA_PLUS: /AMPLIA\s*PLUS/i,
   AMPLIA: /AMPLIA/i,
   LIMITADA: /LIMITADA/i,
   RC: /\bRC\b|RESPONSABILIDAD CIVIL/i,

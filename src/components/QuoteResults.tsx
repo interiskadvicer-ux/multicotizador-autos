@@ -32,7 +32,8 @@ interface Props {
   onElegir?: (celda: Celda) => void;
 }
 
-const COLUMNAS: { paquete: Paquete; label: string }[] = [
+const COLUMNAS: { paquete: Paquete; label: string; nota?: string }[] = [
+  { paquete: "AMPLIA_PLUS", label: "Amplia Plus", nota: "Paquete más alto" },
   { paquete: "AMPLIA", label: "Amplia" },
   { paquete: "LIMITADA", label: "Limitada" },
   { paquete: "RC", label: "Básica" },
@@ -117,7 +118,7 @@ export default function QuoteResults({
           recotizandoTodo ? "opacity-60" : ""
         }`}
       >
-        <table className="w-full min-w-[720px] table-fixed text-sm">
+        <table className="w-full min-w-[860px] table-fixed text-sm">
           <thead>
             <tr className="bg-slate-900 text-white">
               <th className="w-[28%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">
@@ -132,6 +133,11 @@ export default function QuoteResults({
                   className="px-3 py-3 text-center text-sm font-semibold"
                 >
                   {c.label}
+                  {c.nota && (
+                    <span className="block text-[10px] font-normal text-slate-300">
+                      {c.nota}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -176,7 +182,7 @@ export default function QuoteResults({
                               {elegida?.aseguradoraId === seleccionado.aseguradoraId &&
                               elegida?.paquete === seleccionado.paquete
                                 ? "Esta es la opción elegida."
-                                : `¿Continuar con ${seleccionado.aseguradora} · ${seleccionado.paquete}?`}
+                                : `¿Continuar con ${seleccionado.aseguradora} · ${COLUMNAS.find((c) => c.paquete === seleccionado.paquete)?.label ?? seleccionado.paquete}?`}
                             </span>
                             <button
                               type="button"
@@ -439,6 +445,13 @@ function CeldaPrima({
 }) {
   if (!resultado) {
     return <span className="text-xs text-slate-400">—</span>;
+  }
+  if (resultado.noOfrecido) {
+    return (
+      <span className="text-xs text-slate-400" title={resultado.error}>
+        No disponible
+      </span>
+    );
   }
   if (resultado.status !== "success" || !resultado.prima) {
     return (

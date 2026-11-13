@@ -2,6 +2,7 @@
 // Flujo: resolver vehículo (idEstilo → línea/marca) → ubicación por CP →
 // paquete disponible para el vehículo → cotizar con y sin descuento.
 
+import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
   CotizacionRequest,
@@ -24,7 +25,7 @@ const FORMA_PAGO_AFIRME: Record<FormaPago, string> = {
 };
 
 // Palabra clave con la que Afirme nombra cada paquete ("ELITE AMPLIA", …).
-const PAQUETE_AFIRME: Record<Paquete, RegExp> = {
+const PAQUETE_AFIRME: Record<PaqueteEstandar, RegExp> = {
   AMPLIA: /AMPLIA/i,
   LIMITADA: /LIMITADA/i,
   RC: /\bRC\b|RESPONSABILIDAD CIVIL/i,
@@ -157,7 +158,7 @@ async function paqueteAfirme(
     vehiculo: vehiculo.idEstilo,
   });
   const encontrado = Object.entries(paquetes).find(([, nombre]) =>
-    PAQUETE_AFIRME[paquete].test(nombre),
+    PAQUETE_AFIRME[paqueteEstandar(paquete)].test(nombre),
   );
   if (!encontrado) {
     throw new AfirmeError(

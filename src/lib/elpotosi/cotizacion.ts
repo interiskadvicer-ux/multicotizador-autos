@@ -6,18 +6,18 @@
 //   3. Cotizar suma las coberturas seleccionadas y devuelve totales, planes de
 //      pago y el folio de cotización.
 
+import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
   CotizacionRequest,
   CotizacionResultado,
   FormaPago,
-  Paquete,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
 import { ElPotosiError, getElPotosiConfig, llamarElPotosi, urlCotizador } from "./client";
 import { parsearClaveElPotosi, ubicacionPorCp, type ClaveElPotosi } from "./catalogos";
 
-const PAQUETE: Record<Paquete, string> = { AMPLIA: "DAMP", LIMITADA: "DLIM", RC: "DBS" };
+const PAQUETE: Record<PaqueteEstandar, string> = { AMPLIA: "DAMP", LIMITADA: "DLIM", RC: "DBS" };
 
 const FORMA_PAGO: Record<FormaPago, RegExp | undefined> = {
   CONTADO: /^CONTADO/i,
@@ -291,7 +291,7 @@ export async function cotizarElPotosiReal(
       edad: edad(request.conductor.fechaNacimiento),
       genero: request.conductor.genero,
     };
-    const paquete = `${PAQUETE[request.paquete]}-${getElPotosiConfig().usuario}`;
+    const paquete = `${PAQUETE[paqueteEstandar(request.paquete)]}-${getElPotosiConfig().usuario}`;
     const coberturas = (await coberturasPaquete(ctx, paquete))
       .filter((c) => c.seleccionada !== "N")
       .map((c) => ({ ...c, seleccionada: "S" }));

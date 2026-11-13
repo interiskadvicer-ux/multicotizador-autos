@@ -2,6 +2,7 @@
 // Una sola llamada devuelve todos los paquetes con sus formas de pago (y a veces
 // sus coberturas); se cotiza con y sin descuento para mostrar la prima de lista.
 
+import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
   CoberturasPersonalizadas,
@@ -9,7 +10,6 @@ import type {
   CotizacionResultado,
   DesglosePrima,
   FormaPago,
-  Paquete,
 } from "@/domain/types";
 import { ETIQUETA_COBERTURA } from "@/lib/coberturas";
 import { type GsConfig, credencialesConfiguradas, getGsConfig } from "./config";
@@ -26,7 +26,7 @@ import {
 const SERVICIO = "cotizacionEmisionWS";
 const MODULO = "cotizacionEmision";
 
-export const PAQUETE_GS: Record<Paquete, RegExp> = {
+export const PAQUETE_GS: Record<PaqueteEstandar, RegExp> = {
   AMPLIA: /AMPLIA/i,
   LIMITADA: /LIMITADA/i,
   RC: /\bRC\b|RESPONSABILIDAD CIVIL|B[AÁ]SIC/i,
@@ -375,7 +375,7 @@ export async function cotizarGsReal(
     const conDescuento = final ?? { descuento: 0, cotizacion: lista };
 
     const elegir = (c: CotizacionGs) =>
-      c.paquetes.find((p) => PAQUETE_GS[request.paquete].test(p.nombre));
+      c.paquetes.find((p) => PAQUETE_GS[paqueteEstandar(request.paquete)].test(p.nombre));
     const paquete = elegir(conDescuento.cotizacion);
     const paqueteLista = elegir(lista);
     if (!paquete) {

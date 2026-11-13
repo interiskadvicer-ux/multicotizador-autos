@@ -1,4 +1,8 @@
-import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
+import type {
+  CotizacionRequest,
+  CotizacionResultado,
+  Paquete,
+} from "@/domain/types";
 
 // Contrato que TODA aseguradora debe implementar. El multicotizador solo
 // conoce esta interfaz: para agregar una nueva aseguradora basta con crear
@@ -13,5 +17,7 @@ export interface InsurerAdapter {
   // Tiempo máximo de espera (ms) para esta aseguradora. Las integraciones
   // reales que encadenan varias llamadas necesitan más margen que el resto.
   timeoutMs?: number;
+  // Paquetes que cotiza; por omisión los estándar (Amplia, Limitada, RC).
+  paquetes?: readonly Paquete[];
   cotizar(request: CotizacionRequest): Promise<CotizacionResultado>;
 }

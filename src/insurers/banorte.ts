@@ -24,6 +24,7 @@ export const banorte: InsurerAdapter = {
   // Cotizar + recalcular con descuento son dos llamadas secuenciales de ~10 s
   // cada una en el ambiente de Banorte.
   timeoutMs: 60_000,
+  paquetes: ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"],
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
     const claveBanorte = request.vehiculo.claveBanorte?.trim();

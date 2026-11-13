@@ -25,6 +25,7 @@ import DatosGs from "@/components/DatosGs";
 const PASOS = ["Datos y coberturas", "Comparativo", "Contratante", "Vehículo", "Resumen"];
 
 const ETIQUETA_PAQUETE: Record<Paquete, string> = {
+  AMPLIA_PLUS: "Amplia Plus",
   AMPLIA: "Amplia",
   LIMITADA: "Limitada",
   RC: "Básica (RC)",

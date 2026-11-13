@@ -36,6 +36,11 @@ export const PAQUETES: { value: Paquete; label: string; descripcion: string }[] 
       label: "Responsabilidad Civil",
       descripcion: "Solo daños a terceros (cobertura mínima).",
     },
+    {
+      value: "AMPLIA_PLUS",
+      label: "Cobertura Amplia Plus",
+      descripcion: "El paquete más alto de cada aseguradora (Amplia con coberturas adicionales).",
+    },
   ];
 
 export const FORMAS_PAGO: { value: FormaPago; label: string }[] = [

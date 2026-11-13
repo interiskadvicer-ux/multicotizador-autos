@@ -8,12 +8,13 @@ import type {
 import { formatMXN } from "./format";
 
 const PAQUETE_LABEL: Record<Paquete, string> = {
+  AMPLIA_PLUS: "Cobertura Amplia Plus",
   AMPLIA: "Cobertura Amplia",
   LIMITADA: "Cobertura Limitada",
   RC: "Responsabilidad Civil (Básica)",
 };
 
-const ORDEN_PAQUETES: Paquete[] = ["AMPLIA", "LIMITADA", "RC"];
+const ORDEN_PAQUETES: Paquete[] = ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"];
 
 const FORMA_PAGO_LABEL: Record<CotizacionRequest["formaPago"], string> = {
   CONTADO: "Contado (anual)",
@@ -87,11 +88,13 @@ export function generarPdfCotizacion(
   const aseguradoras = Array.from(
     new Map(exitosas.map((r) => [r.aseguradoraId, r.aseguradora])).entries(),
   ).sort(([ida], [idb]) => {
+    // Orden por la Amplia (casi todas la tienen); si no, por el primer paquete.
+    const orden = paquetes.includes("AMPLIA") ? "AMPLIA" : paquetes[0];
     const pa =
-      exitosas.find((r) => r.aseguradoraId === ida && r.paquete === paquetes[0])
+      exitosas.find((r) => r.aseguradoraId === ida && r.paquete === orden)
         ?.prima?.primaTotal ?? Infinity;
     const pb =
-      exitosas.find((r) => r.aseguradoraId === idb && r.paquete === paquetes[0])
+      exitosas.find((r) => r.aseguradoraId === idb && r.paquete === orden)
         ?.prima?.primaTotal ?? Infinity;
     return pa - pb;
   });

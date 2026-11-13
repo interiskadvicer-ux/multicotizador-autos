@@ -23,6 +23,7 @@ export const zurich: InsurerAdapter = {
   descuentoDefault: 35,
   // Detalle de clave + solicitud + hasta dos recotizaciones encadenadas.
   timeoutMs: 60_000,
+  paquetes: ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"],
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const descuento = resolverDescuento(request, this.id, this.descuentoDefault);
     const claveZurich = request.vehiculo.claveZurich?.trim();

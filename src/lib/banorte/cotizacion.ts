@@ -16,6 +16,7 @@ import { BanorteError, BanorteNoConfigurado, llamarBanorte } from "./client";
 
 // Paquete del multicotizador -> plan de Banorte.
 const PAQUETE_A_BANORTE: Record<Paquete, string> = {
+  AMPLIA_PLUS: "INTEGRAL PLUS",
   AMPLIA: "INTEGRAL",
   LIMITADA: "PROTEGIDO",
   RC: "PREVENTIVO",
@@ -150,7 +151,7 @@ function coberturas(items: ItemCobertura[]): Cobertura[] {
     if (nombre && !porNombre.has(nombre)) porNombre.set(nombre, it);
   }
 
-  return ORDEN_COBERTURAS.map((nombre) => {
+  const homologadas: Cobertura[] = ORDEN_COBERTURAS.map((nombre) => {
     const it = porNombre.get(nombre);
     if (!it || !it.habilitada) {
       return { nombre, incluida: false, deducible: "N/A" };
@@ -162,6 +163,23 @@ function coberturas(items: ItemCobertura[]): Cobertura[] {
       deducible: it.leyendaDeducible || "N/A",
     };
   });
+
+  // Coberturas adicionales del plan (p. ej. auto sustituto o servicios
+  // funerarios en Integral Plus), con el nombre que les da Banorte.
+  const vistos = new Set<string>();
+  const adicionales: Cobertura[] = [];
+  for (const it of items) {
+    const clave = it.nombreTipoCobertura.toUpperCase();
+    if (!it.habilitada || COBERTURA_HOMOLOGADA[clave] || vistos.has(clave)) continue;
+    vistos.add(clave);
+    adicionales.push({
+      nombre: clave.charAt(0) + clave.slice(1).toLowerCase(),
+      incluida: true,
+      sumaAsegurada: it.leyendaSumaAsegurada || undefined,
+      deducible: it.leyendaDeducible || "N/A",
+    });
+  }
+  return [...homologadas, ...adicionales];
 }
 
 function opciones(lista: Array<{ valor?: number }> | undefined): number[] {

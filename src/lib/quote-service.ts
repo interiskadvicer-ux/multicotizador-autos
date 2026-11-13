@@ -1,7 +1,8 @@
-import type {
-  CotizacionRequest,
-  CotizacionResultado,
-  Paquete,
+import {
+  PAQUETES_ESTANDAR,
+  type CotizacionRequest,
+  type CotizacionResultado,
+  type Paquete,
 } from "@/domain/types";
 import { ADAPTERS } from "@/insurers/registry";
 
@@ -42,6 +43,18 @@ export async function cotizarTodas(
     : ADAPTERS;
   const resultados = await Promise.all(
     adapters.map(async (adapter) => {
+      if (!(adapter.paquetes ?? PAQUETES_ESTANDAR).includes(request.paquete)) {
+        return {
+          aseguradoraId: adapter.id,
+          aseguradora: adapter.nombre,
+          status: "error" as const,
+          paquete: request.paquete,
+          moneda: "MXN" as const,
+          coberturas: [],
+          noOfrecido: true,
+          error: `${adapter.nombre} no ofrece un paquete superior a Amplia.`,
+        };
+      }
       try {
         return await withTimeout(
           adapter.id,
