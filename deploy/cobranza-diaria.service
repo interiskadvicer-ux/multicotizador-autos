@@ -1,0 +1,13 @@
+[Unit]
+Description=Cobranza diaria: pagos por aseguradora y reporte de pólizas
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/multicotizador-autos
+Environment=NODE_ENV=production
+Environment=NODE_EXTRA_CA_CERTS=/home/ubuntu/certs/digicert-g2-intermediate.pem
+ExecStart=/usr/bin/npm run cobranza:diaria
+TimeoutStartSec=2h
