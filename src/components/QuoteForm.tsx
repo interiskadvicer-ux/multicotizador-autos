@@ -472,6 +472,24 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
           </div>
           <div>
             <label className={labelCls}>
+              Año
+              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
+            </label>
+            <select
+              className={inputCls}
+              value={anio}
+              onChange={(e) => {
+                setAnio(Number(e.target.value));
+                limpiarClaves();
+              }}
+            >
+              {ANIOS.map((a) => (
+                <option key={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>
               Modelo / Línea
               <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
             </label>
@@ -509,24 +527,6 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                 ))}
               </select>
             )}
-          </div>
-          <div>
-            <label className={labelCls}>
-              Año
-              <span className="ml-0.5 text-red-600" aria-hidden="true">*</span>
-            </label>
-            <select
-              className={inputCls}
-              value={anio}
-              onChange={(e) => {
-                setAnio(Number(e.target.value));
-                limpiarClaves();
-              }}
-            >
-              {ANIOS.map((a) => (
-                <option key={a}>{a}</option>
-              ))}
-            </select>
           </div>
           <div>
             <label className={labelCls}>Versión</label>
