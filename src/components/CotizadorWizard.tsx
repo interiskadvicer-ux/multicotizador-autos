@@ -224,6 +224,34 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
     }
   }
 
+  async function recotizarAdicionales(aseguradoraId: string, ids: string[]) {
+    if (!ultimaSolicitud) return;
+    const adicionales = {
+      ...ultimaSolicitud.coberturasAdicionales,
+      [aseguradoraId]: ids,
+    };
+    const siguiente = { ...ultimaSolicitud, coberturasAdicionales: adicionales };
+    setUltimaSolicitud(siguiente);
+    setRecotizando(aseguradoraId);
+    setError(null);
+    setSeleccion(null);
+    try {
+      const nuevos = await pedirCotizacion({
+        ...siguiente,
+        descuentos: puedeDescontar ? descuentos : siguiente.descuentos,
+        aseguradoras: [aseguradoraId],
+      });
+      setResultados((prev) => [
+        ...(prev ?? []).filter((r) => r.aseguradoraId !== aseguradoraId),
+        ...nuevos,
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setRecotizando(null);
+    }
+  }
+
   async function recotizarCoberturas(nuevas: CoberturasPersonalizadas) {
     if (!ultimaSolicitud) return;
     const request: CotizacionRequest = {
@@ -398,6 +426,7 @@ export default function CotizadorWizard({ puedeDescontar, cotizacionId }: Props)
             coberturas={coberturas}
             recotizandoTodo={recotizandoTodo}
             onCoberturas={recotizarCoberturas}
+            onAdicionales={bloqueada ? undefined : recotizarAdicionales}
             puedeDescontar={puedeDescontar && !bloqueada}
             elegida={seleccion}
             onElegir={(c) => {

@@ -4,6 +4,7 @@ import type {
   CotizacionRequest,
 } from "@/domain/types";
 import { cotizarPaquetes } from "@/lib/quote-service";
+import { sonAdicionalesValidas } from "@/lib/coberturas-adicionales";
 import { requireApiSesion } from "@/lib/api-auth";
 import { registrarActividad } from "@/lib/activity";
 
@@ -52,6 +53,7 @@ function esRequestValido(body: unknown): body is CotizacionRequest {
     return false;
   }
   if (!sonCoberturasValidas(b.coberturasPersonalizadas)) return false;
+  if (!sonAdicionalesValidas(b.coberturasAdicionales)) return false;
   const v = b.vehiculo as Record<string, unknown> | undefined;
   const c = b.conductor as Record<string, unknown> | undefined;
   if (!v || !c) return false;

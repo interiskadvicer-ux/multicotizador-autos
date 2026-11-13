@@ -16,6 +16,8 @@ import type {
   Uso,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
+import { adicionalesSolicitadas, nombreVisible } from "@/lib/coberturas-adicionales";
+import type { CoberturaOpcional } from "@/domain/types";
 import { unescapeXml } from "@/lib/qualitas/soap";
 import { credencialesConfiguradas, getHdiConfig } from "./config";
 import {
@@ -502,6 +504,7 @@ export interface CotizacionPreparadaHdi {
   paquete: PaqueteHdi;
   ajustes: string[];
   descuento: number;
+  opcionales: CoberturaOpcional[];
 }
 
 // Solicitud y paquete de HDI con las coberturas declaradas, el descuento y
@@ -510,6 +513,7 @@ export async function prepararCotizacionHdi(
   request: CotizacionRequest,
   descuento: number,
   claveHdi: string,
+  aseguradoraId = "hdi",
 ): Promise<CotizacionPreparadaHdi> {
   const cfg = getHdiConfig();
   const vehiculo = parsearClaveHdi(claveHdi);
@@ -539,6 +543,16 @@ export async function prepararCotizacionHdi(
   if (request.coberturasPersonalizadas) {
     aplicarPersonalizadas(request.coberturasPersonalizadas, paquete, ajustes);
   }
+  // Las opcionales llegan sin calcular; se contratan marcándolas calculadas.
+  const elegir = adicionalesSolicitadas(request, aseguradoraId);
+  const opcionales: CoberturaOpcional[] = [];
+  for (const c of elegir ? paquete.coberturas.CoberturasOpcionales : []) {
+    if (c.calculada) continue;
+    const id = String(c.clave);
+    const contratada = Boolean(elegir?.has(id));
+    opcionales.push({ id, nombre: nombreVisible(c.descripcion), contratada });
+    if (contratada) c.calculada = true;
+  }
   paquete = await obtenerPaquete(
     solicitud,
     xmlPaqueteConCambios(
@@ -560,7 +574,7 @@ export async function prepararCotizacionHdi(
   if (!paquete.totales.primaTotal) {
     throw new HdiError("HDI no devolvió una prima válida para el paquete.");
   }
-  return { solicitud, paquete, ajustes, descuento };
+  return { solicitud, paquete, ajustes, descuento, opcionales };
 }
 
 export async function cotizarHdiReal(
@@ -584,17 +598,32 @@ export async function cotizarHdiReal(
   }
 
   try {
-    const { solicitud, paquete, ajustes } = await prepararCotizacionHdi(
+    const { solicitud, paquete, ajustes, opcionales } = await prepararCotizacionHdi(
       request,
       descuento,
       claveHdi,
+      aseguradoraId,
     );
+    const contratadas = new Set(opcionales.filter((o) => o.contratada).map((o) => o.id));
 
     return {
       ...base,
       status: "success",
       prima: desglose(paquete.totales, paquete.porcentajeAjuste || descuento),
-      coberturas: coberturasHomologadas(paquete),
+      coberturas: [
+        ...coberturasHomologadas(paquete),
+        ...paquete.coberturas.CoberturasOpcionales.filter((c) =>
+          contratadas.has(String(c.clave)),
+        ).map(
+          (c): Cobertura => ({
+            nombre: nombreVisible(c.descripcion),
+            incluida: true,
+            sumaAsegurada: formatearSuma(c.clave, c.sumaAsegurada),
+            deducible: c.deducible > 0 ? `${c.deducible}%` : "N/A",
+          }),
+        ),
+      ],
+      opcionales: opcionales.length ? opcionales : undefined,
       vigencia: { inicio: solicitud.inicio, fin: solicitud.fin },
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",

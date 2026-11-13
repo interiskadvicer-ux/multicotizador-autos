@@ -12,6 +12,8 @@ import type {
   Paquete,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
+import { adicionalesSolicitadas, nombreVisible } from "@/lib/coberturas-adicionales";
+import type { CoberturaOpcional } from "@/domain/types";
 import { credencialesConfiguradas, getAfirmeConfig } from "./config";
 import { AfirmeError, AfirmeNoConfigurado, llamarAfirme } from "./client";
 import { resolverVehiculo, type VehiculoAfirme } from "./catalogos";
@@ -182,9 +184,15 @@ async function coberturasPersonalizadasAfirme(
   ubicacion: Ubicacion,
   idPaquete: string,
   ajustes: string[],
-): Promise<CoberturaEnvio[] | undefined> {
-  const cob = request.coberturasPersonalizadas;
-  if (!cob) return undefined;
+  elegir: Set<string> | undefined,
+): Promise<{
+  envio?: CoberturaEnvio[];
+  opcionales: CoberturaOpcional[];
+  adicionales: Cobertura[];
+}> {
+  const sinCambios = { opcionales: [], adicionales: [] };
+  if (!request.coberturasPersonalizadas && !elegir) return sinCambios;
+  const cob = request.coberturasPersonalizadas ?? {};
   const cfg = getAfirmeConfig();
   const lista = await llamarAfirme<CoberturaConfigurable[]>("obtenerCoberturas", {
     cotizacionCobertura: JSON.stringify({
@@ -199,7 +207,9 @@ async function coberturasPersonalizadasAfirme(
       modelo: vehiculo.anio,
     }),
   });
-  if (!Array.isArray(lista) || !lista.length) return undefined;
+  if (!Array.isArray(lista) || !lista.length) return sinCambios;
+  // Obligatoriedad 2 sin contratar = opcional del paquete.
+  const esOpcional = (c: CoberturaConfigurable) => c.obligatoriedad === 2 && !c.contratada;
 
   let cambio = false;
   const envio = lista.map((c): CoberturaEnvio => {
@@ -256,12 +266,32 @@ async function coberturasPersonalizadasAfirme(
     return {
       idCobertura: c.idCobertura,
       obligatoriedad: c.obligatoriedad ?? 0,
-      contratada: c.contratada ?? true,
+      contratada: esOpcional(c)
+        ? Boolean(elegir?.has(String(c.idCobertura)))
+        : (c.contratada ?? true),
       sumaAsegurada,
       deducible,
     };
   });
-  return cambio ? envio : undefined;
+  const opcionales = elegir ? lista.filter(esOpcional) : [];
+  const contratadas = opcionales.filter((c) => elegir?.has(String(c.idCobertura)));
+  if (contratadas.length) cambio = true;
+  const nombre = (c: CoberturaConfigurable) =>
+    nombreVisible(c.descripcion ?? `Cobertura ${c.idCobertura}`);
+  return {
+    envio: cambio ? envio : undefined,
+    opcionales: opcionales.map((c) => ({
+      id: String(c.idCobertura),
+      nombre: nombre(c),
+      contratada: Boolean(elegir?.has(String(c.idCobertura))),
+    })),
+    adicionales: contratadas.map((c) => ({
+      nombre: nombre(c),
+      incluida: true,
+      sumaAsegurada: formatearSuma(c.sumaAsegurada) ?? "Amparada",
+      deducible: formatearDeducible(c.deducible),
+    })),
+  };
 }
 
 function cuerpoCotizacion(
@@ -394,9 +424,10 @@ export async function cotizarAfirmeReal(
       ubicacion,
       idPaquete,
       ajustes,
+      adicionalesSolicitadas(request, aseguradoraId),
     );
     const construir = (d: number) =>
-      cuerpoCotizacion(request, vehiculo, ubicacion, idPaquete, d, personalizadas);
+      cuerpoCotizacion(request, vehiculo, ubicacion, idPaquete, d, personalizadas.envio);
 
     // La prima de lista (0 %) se pide en paralelo para mostrar el desglose del
     // descuento; Afirme siempre reporta `descuentos: 0` en la respuesta.
@@ -429,7 +460,8 @@ export async function cotizarAfirmeReal(
       ...base,
       status: "success",
       prima,
-      coberturas: coberturas(data.coberturas ?? {}),
+      coberturas: [...coberturas(data.coberturas ?? {}), ...personalizadas.adicionales],
+      opcionales: personalizadas.opcionales.length ? personalizadas.opcionales : undefined,
       vigencia: { inicio: fechaISO(inicio), fin: fechaISO(fin) },
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",

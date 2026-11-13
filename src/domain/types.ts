@@ -101,6 +101,17 @@ export interface CotizacionRequest {
   // Sumas aseguradas y deducibles elegidos por el broker. Cada aseguradora
   // aplica el valor más cercano que admita y lo reporta en `ajustes`.
   coberturasPersonalizadas?: CoberturasPersonalizadas;
+  // Coberturas opcionales contratadas en la Amplia, por aseguradora:
+  // { [aseguradoraId]: [clave de la cobertura en esa aseguradora] }.
+  coberturasAdicionales?: Record<string, string[]>;
+}
+
+// Cobertura opcional que la aseguradora ofrece para el paquete (devuelta por
+// su web service) y que el broker puede contratar.
+export interface CoberturaOpcional {
+  id: string;
+  nombre: string;
+  contratada: boolean;
 }
 
 export interface Cobertura {
@@ -152,6 +163,8 @@ export interface CotizacionResultado {
   // Avisos cuando la aseguradora no admite exactamente una cobertura
   // solicitada y aplicó el valor más cercano (p. ej. "RC mínima $4,000,000").
   ajustes?: string[];
+  // Coberturas opcionales disponibles para este paquete (solo Amplia).
+  opcionales?: CoberturaOpcional[];
 }
 
 export interface Aseguradora {

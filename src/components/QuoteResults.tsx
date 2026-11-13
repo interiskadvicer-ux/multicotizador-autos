@@ -6,6 +6,7 @@ import {
   OPCIONES_DEDUCIBLE_RT,
   OPCIONES_GM,
   OPCIONES_RC,
+  type CoberturaOpcional,
   type CoberturasPersonalizadas,
   type CotizacionRequest,
   type CotizacionResultado,
@@ -26,6 +27,7 @@ interface Props {
   coberturas: CoberturasPersonalizadas;
   recotizandoTodo: boolean;
   onCoberturas: (coberturas: CoberturasPersonalizadas) => void;
+  onAdicionales?: (aseguradoraId: string, ids: string[]) => void;
   // Si es false, el descuento se muestra fijo (agentes usan el estándar).
   puedeDescontar?: boolean;
   elegida?: Celda | null;
@@ -53,6 +55,7 @@ export default function QuoteResults({
   coberturas,
   recotizandoTodo,
   onCoberturas,
+  onAdicionales,
   puedeDescontar = true,
   elegida = null,
   onElegir,
@@ -243,6 +246,12 @@ export default function QuoteResults({
                         <Detalle
                           resultado={seleccionado}
                           request={request ? { ...request, descuentos } : null}
+                          ocupado={ocupado || recotizandoTodo}
+                          onAdicionales={
+                            onAdicionales
+                              ? (ids) => onAdicionales(a.id, ids)
+                              : undefined
+                          }
                         />
                       </div>
                     ) : null
@@ -545,9 +554,13 @@ function CeldaPrima({
 function Detalle({
   resultado,
   request,
+  ocupado = false,
+  onAdicionales,
 }: {
   resultado: CotizacionResultado;
   request: CotizacionRequest | null;
+  ocupado?: boolean;
+  onAdicionales?: (ids: string[]) => void;
 }) {
   const [emitiendo, setEmitiendo] = useState(false);
   const prima = resultado.prima;
@@ -661,7 +674,72 @@ function Detalle({
             </li>
           ))}
         </ul>
+        {resultado.opcionales?.length ? (
+          <Adicionales
+            opcionales={resultado.opcionales}
+            ocupado={ocupado}
+            onChange={onAdicionales}
+          />
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+function Adicionales({
+  opcionales,
+  ocupado,
+  onChange,
+}: {
+  opcionales: CoberturaOpcional[];
+  ocupado: boolean;
+  onChange?: (ids: string[]) => void;
+}) {
+  const contratadas = opcionales.filter((o) => o.contratada).map((o) => o.id);
+  const [abierto, setAbierto] = useState(contratadas.length > 0);
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500"
+      >
+        <span>
+          Coberturas adicionales
+          {contratadas.length > 0 && ` (${contratadas.length} agregadas)`}
+        </span>
+        <span>{abierto ? "▲" : "▼"}</span>
+      </button>
+      {abierto && (
+        <>
+          <p className="mt-1 text-[10px] text-slate-400">
+            Opcionales que da la aseguradora para esta Amplia. Al palomear o
+            quitar una se recotiza solo esta aseguradora.
+            {ocupado && " Recotizando…"}
+          </p>
+          <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+            {opcionales.map((o) => (
+              <li key={o.id}>
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={o.contratada}
+                    disabled={ocupado || !onChange}
+                    onChange={() =>
+                      onChange?.(
+                        o.contratada
+                          ? contratadas.filter((id) => id !== o.id)
+                          : [...contratadas, o.id],
+                      )
+                    }
+                  />
+                  {o.nombre}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

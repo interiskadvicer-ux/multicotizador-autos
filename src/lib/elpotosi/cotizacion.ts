@@ -14,6 +14,8 @@ import type {
   FormaPago,
 } from "@/domain/types";
 import { acotar, masCercano } from "@/lib/coberturas";
+import { adicionalesSolicitadas, nombreVisible } from "@/lib/coberturas-adicionales";
+import type { CoberturaOpcional } from "@/domain/types";
 import { ElPotosiError, getElPotosiConfig, llamarElPotosi, urlCotizador } from "./client";
 import { parsearClaveElPotosi, ubicacionPorCp, type ClaveElPotosi } from "./catalogos";
 
@@ -292,8 +294,12 @@ export async function cotizarElPotosiReal(
       genero: request.conductor.genero,
     };
     const paquete = `${PAQUETE[paqueteEstandar(request.paquete)]}-${getElPotosiConfig().usuario}`;
-    const coberturas = (await coberturasPaquete(ctx, paquete))
-      .filter((c) => c.seleccionada !== "N")
+    // Las marcadas "N" son opcionales del paquete; se contratan las elegidas.
+    const elegir = adicionalesSolicitadas(request, aseguradoraId);
+    const delPaquete = await coberturasPaquete(ctx, paquete);
+    const opcionales = elegir ? delPaquete.filter((c) => c.seleccionada === "N") : [];
+    const coberturas = delPaquete
+      .filter((c) => c.seleccionada !== "N" || elegir?.has(c.codCobert))
       .map((c) => ({ ...c, seleccionada: "S" }));
     if (!coberturas.length)
       throw new ElPotosiError(`El Potosí no devolvió coberturas del paquete ${paquete}.`);
@@ -335,7 +341,28 @@ export async function cotizarElPotosiReal(
         iva: round2(r.iva),
         primaTotal: round2(plan.importeTotal),
       },
-      coberturas: coberturasHomologadas(coberturas),
+      coberturas: [
+        ...coberturasHomologadas(coberturas),
+        ...coberturas
+          .filter((c) => opcionales.some((o) => o.codCobert === c.codCobert))
+          .map(
+            (c): Cobertura => ({
+              nombre: nombreVisible(c.descCobert),
+              incluida: true,
+              sumaAsegurada: c.suma_Asegurada > 0 ? dinero(c.suma_Asegurada) : "Amparada",
+              deducible: c.deducible > 0 ? `${c.deducible}%` : "N/A",
+            }),
+          ),
+      ],
+      opcionales: opcionales.length
+        ? opcionales.map(
+            (c): CoberturaOpcional => ({
+              id: c.codCobert,
+              nombre: nombreVisible(c.descCobert),
+              contratada: Boolean(elegir?.has(c.codCobert)),
+            }),
+          )
+        : undefined,
       vigencia: {
         inicio: inicio.toISOString().slice(0, 10),
         fin: fin.toISOString().slice(0, 10),
