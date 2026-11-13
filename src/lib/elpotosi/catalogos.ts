@@ -2,6 +2,7 @@
 // modelos (submarcas) → versiones. La clave del vehículo se arma como
 // `tipo-marca-modelo-version`, p. ej. AUT-120-001-07.
 
+import { conLineaPorClase } from "@/lib/lineas-vehiculo";
 import { getElPotosiConfig, llamarElPotosi, urlCotizador } from "./client";
 
 const TIPOS = ["AUT", "PIC"] as const;
@@ -82,7 +83,7 @@ function coincide(catalogo: string, buscado: string): boolean {
   return Boolean(a && b && (a === b || a.startsWith(b) || b.startsWith(a)));
 }
 
-export async function buscarVehiculos(
+async function buscarVehiculosDirecto(
   f: BusquedaVehiculoElPotosi,
 ): Promise<VehiculoElPotosi[]> {
   const resultados: VehiculoElPotosi[] = [];
@@ -188,4 +189,10 @@ export async function ubicacionPorCp(
 ): Promise<{ estado: string; municipio: string }> {
   const { estado, municipio } = await domicilioPorCp(cp);
   return { estado, municipio };
+}
+
+export function buscarVehiculos(filtros: BusquedaVehiculoElPotosi): Promise<VehiculoElPotosi[]> {
+  return conLineaPorClase(filtros, (submarca) =>
+    buscarVehiculosDirecto({ ...filtros, submarca }),
+  );
 }

@@ -3,6 +3,7 @@
 // cotizar también se requieren la línea de negocio y la marca, que se
 // resuelven aquí a partir de marca/submarca/año.
 
+import { conLineaPorClase } from "@/lib/lineas-vehiculo";
 import { getAfirmeConfig } from "./config";
 import { llamarAfirme } from "./client";
 
@@ -98,7 +99,7 @@ async function buscarEnLinea(
 
 // Recorre las líneas de negocio configuradas (automóviles, pick ups…) hasta
 // encontrar el vehículo.
-export async function buscarVehiculos(
+async function buscarVehiculosDirecto(
   filtros: BusquedaVehiculoAfirme,
 ): Promise<VehiculoAfirme[]> {
   const cfg = getAfirmeConfig();
@@ -120,4 +121,10 @@ export async function resolverVehiculo(
 
   const porMarca = await buscarVehiculos({ ...filtros, submarca: undefined });
   return porMarca.find((v) => v.idEstilo === idEstilo);
+}
+
+export function buscarVehiculos(filtros: BusquedaVehiculoAfirme): Promise<VehiculoAfirme[]> {
+  return conLineaPorClase(filtros, (submarca) =>
+    buscarVehiculosDirecto({ ...filtros, submarca }),
+  );
 }

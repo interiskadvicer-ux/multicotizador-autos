@@ -2,6 +2,7 @@
 // versiones por modelo. La clave de la versión (`amis`) es la claveGs que
 // requiere la cotización.
 
+import { conLineaPorClase } from "@/lib/lineas-vehiculo";
 import { bloques, llamarGs, valor } from "./client";
 
 const SERVICIO = "catalogoAutosWS";
@@ -133,7 +134,7 @@ export function submarcasGs(lista: Entrada[], buscada: string, marca: string): E
     .map(({ e }) => e);
 }
 
-export async function buscarVehiculos(filtros: BusquedaVehiculoGs): Promise<VehiculoGs[]> {
+async function buscarVehiculosDirecto(filtros: BusquedaVehiculoGs): Promise<VehiculoGs[]> {
   const marca = marcaGs(await marcas(), filtros.marca);
   if (!marca) return [];
   const lista = await submarcas(marca.id);
@@ -152,4 +153,10 @@ export async function buscarVehiculos(filtros: BusquedaVehiculoGs): Promise<Vehi
     ),
   );
   return porSubmarca.flat();
+}
+
+export function buscarVehiculos(filtros: BusquedaVehiculoGs): Promise<VehiculoGs[]> {
+  return conLineaPorClase(filtros, (submarca) =>
+    buscarVehiculosDirecto({ ...filtros, submarca }),
+  );
 }

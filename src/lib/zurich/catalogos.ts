@@ -2,6 +2,7 @@
 // modelo. Zurich separa automóviles (tipoVehiculo 1) de camiones ligeros
 // (tipoVehiculo 2, pick ups), así que la búsqueda recorre ambos.
 
+import { conLineaPorClase } from "@/lib/lineas-vehiculo";
 import { getZurichConfig } from "./config";
 import { bloques, llamarZurich, valor, xmlCampos, type Campos } from "./client";
 
@@ -172,7 +173,7 @@ async function buscarPorTipo(
   return porSubmarca.flat();
 }
 
-export async function buscarVehiculos(
+async function buscarVehiculosDirecto(
   filtros: BusquedaVehiculoZurich,
 ): Promise<VehiculoZurich[]> {
   const porTipo = await Promise.all(
@@ -199,4 +200,10 @@ export async function detalleVehiculo(claveZurich: string): Promise<DetalleVehic
     tipoVehiculo: valor(xml, "tipoVehiculo") || "1",
     descripcion: valor(xml, "descripcion"),
   };
+}
+
+export function buscarVehiculos(filtros: BusquedaVehiculoZurich): Promise<VehiculoZurich[]> {
+  return conLineaPorClase(filtros, (submarca) =>
+    buscarVehiculosDirecto({ ...filtros, submarca }),
+  );
 }
