@@ -10,6 +10,7 @@ import {
 } from "@/lib/cotizaciones";
 import { parseDatosCotizacion } from "@/lib/validate-cotizacion";
 import { registrarActividad } from "@/lib/activity";
+import { resultadosAutenticos } from "@/lib/firma-cotizacion";
 
 const ROLES_COTIZAN = ["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"] as const;
 
@@ -88,6 +89,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const parsed = parseDatosCotizacion(body);
   if (parsed.error !== null) {
     return NextResponse.json({ error: parsed.error }, { status: 422 });
+  }
+  if (sesion.rol === "AGENTE") {
+    if (!resultadosAutenticos(parsed.data.resultados, cot.resultados)) {
+      return NextResponse.json(
+        { error: "Las primas no coinciden con la cotización. Vuelve a cotizar." },
+        { status: 422 },
+      );
+    }
+    delete parsed.data.request.descuentos;
   }
   actualizarCotizacion(cot.id, parsed.data);
   if (parsed.data.estado === "EMISION_SOLICITADA" && cot.estado !== "EMISION_SOLICITADA") {

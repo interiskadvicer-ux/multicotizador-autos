@@ -165,6 +165,8 @@ export interface CotizacionResultado {
   ajustes?: string[];
   // Coberturas opcionales disponibles para este paquete (solo Amplia).
   opcionales?: CoberturaOpcional[];
+  // Firma del servidor sobre los importes (ver firma-cotizacion.ts).
+  firma?: string;
 }
 
 export interface Aseguradora {

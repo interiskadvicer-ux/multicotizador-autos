@@ -3,6 +3,7 @@ import { requireApiSesion } from "@/lib/api-auth";
 import { crearCotizacion, listarCotizaciones } from "@/lib/cotizaciones";
 import { parseDatosCotizacion } from "@/lib/validate-cotizacion";
 import { registrarActividad } from "@/lib/activity";
+import { resultadosAutenticos } from "@/lib/firma-cotizacion";
 
 const ROLES_COTIZAN = ["ADMIN", "POLIZAS", "COTIZADOR", "AGENTE"] as const;
 
@@ -21,6 +22,15 @@ export async function POST(req: Request) {
   const parsed = parseDatosCotizacion(await req.json().catch(() => null));
   if (parsed.error !== null) {
     return NextResponse.json({ error: parsed.error }, { status: 422 });
+  }
+  if (sesion.rol === "AGENTE") {
+    if (!resultadosAutenticos(parsed.data.resultados)) {
+      return NextResponse.json(
+        { error: "Las primas no coinciden con la cotización. Vuelve a cotizar." },
+        { status: 422 },
+      );
+    }
+    delete parsed.data.request.descuentos;
   }
   const id = crearCotizacion(sesion.id, parsed.data);
   registrarActividad(

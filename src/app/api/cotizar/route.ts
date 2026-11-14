@@ -7,6 +7,7 @@ import { cotizarPaquetes } from "@/lib/quote-service";
 import { sonAdicionalesValidas } from "@/lib/coberturas-adicionales";
 import { requireApiSesion } from "@/lib/api-auth";
 import { registrarActividad } from "@/lib/activity";
+import { firmarResultados } from "@/lib/firma-cotizacion";
 
 const PAQUETES_VALIDOS = new Set(["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"]);
 const TIPOS_CARGA = new Set(["VACIO", "A", "B"]);
@@ -113,5 +114,5 @@ export async function POST(req: Request) {
     "COTIZAR",
     `Cotizó ${body.vehiculo.marca} ${body.vehiculo.modelo} ${body.vehiculo.anio} (${paquetes.join("/")})${alcance}`,
   );
-  return NextResponse.json({ resultados });
+  return NextResponse.json({ resultados: firmarResultados(resultados) });
 }
