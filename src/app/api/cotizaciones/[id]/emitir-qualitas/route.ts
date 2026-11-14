@@ -58,7 +58,10 @@ async function emitir(req: Request, sesion: SesionUsuario, id: number) {
   const notas = `Emitida en Quálitas (${resultado.ambiente})${
     resultado.recibos?.length ? ` · ${resultado.recibos.length} recibo(s)` : ""
   }`;
-  const polizaId = emitirCotizacion(cot, resultado.numeroPoliza, vigenciaInicio, notas, sesion.id);
+  const polizaId = emitirCotizacion(cot, resultado.numeroPoliza, vigenciaInicio, notas, sesion.id, null, {
+    primaNeta: resultado.primaNeta,
+    primaTotal: resultado.primaTotal,
+  });
   registrarActividad(
     sesion,
     "COTIZACION_EMITIDA",

@@ -310,6 +310,7 @@ export function emitirCotizacion(
   notasAdmin: string | null,
   adminId: number,
   caratula: string | null = null,
+  primasEmitidas: { primaNeta?: number; primaTotal?: number } = {},
 ): number {
   const elegido = cot.seleccion
     ? cot.resultados.find(
@@ -333,8 +334,16 @@ export function emitirCotizacion(
           ramo: "Autos",
           aseguradora: cot.aseguradora ?? elegido?.aseguradora ?? "",
           asegurado: cot.contratante?.nombre || cot.cliente || "Sin nombre",
-          primaNeta: elegido?.prima?.primaNeta ?? cot.primaTotal ?? 0,
-          primaTotal: cot.primaTotal ?? elegido?.prima?.primaTotal ?? 0,
+          primaNeta:
+            (primasEmitidas.primaNeta || undefined) ??
+            elegido?.prima?.primaNeta ??
+            cot.primaTotal ??
+            0,
+          primaTotal:
+            (primasEmitidas.primaTotal || undefined) ??
+            cot.primaTotal ??
+            elegido?.prima?.primaTotal ??
+            0,
           vigenciaInicio,
           vigenciaFin: sumarUnAnio(vigenciaInicio),
           notas: `Emitida desde cotización #${cot.id} · ${cot.vehiculo}${serie}${

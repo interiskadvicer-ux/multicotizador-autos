@@ -69,7 +69,9 @@ async function emitir(req: Request, sesion: SesionUsuario, id: number) {
   const caratula = pdfCaratula ? guardarCaratula(pdfCaratula) : null;
   const numeroPoliza = poliza.poliza;
   const notas = `Emitida en General de Seguros (${poliza.ambiente}) · cotización GS ${poliza.idCotizacion}`;
-  const polizaId = emitirCotizacion(cot, numeroPoliza, vigenciaInicio, notas, sesion.id, caratula);
+  const polizaId = emitirCotizacion(cot, numeroPoliza, vigenciaInicio, notas, sesion.id, caratula, {
+    primaTotal: poliza.primaTotal,
+  });
   registrarActividad(
     sesion,
     "COTIZACION_EMITIDA",
