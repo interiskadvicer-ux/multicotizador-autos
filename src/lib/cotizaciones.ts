@@ -283,6 +283,23 @@ function sumarUnAnio(iso: string): string {
   return fin.toISOString().slice(0, 10);
 }
 
+// Evita que dos solicitudes emitan la misma cotización a la vez con la
+// aseguradora (el servicio corre en un solo proceso).
+const emisionesEnCurso = new Set<number>();
+
+export async function conEmisionExclusiva<T>(
+  id: number,
+  fn: () => Promise<T>,
+): Promise<T | null> {
+  if (emisionesEnCurso.has(id)) return null;
+  emisionesEnCurso.add(id);
+  try {
+    return await fn();
+  } finally {
+    emisionesEnCurso.delete(id);
+  }
+}
+
 // Marca la cotización como emitida y la registra en el control de pólizas
 // (asignada al agente dueño de la cotización). Si ya tenía póliza ligada, no
 // la duplica.

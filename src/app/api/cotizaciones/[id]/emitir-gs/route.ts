@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiSesion } from "@/lib/api-auth";
-import { emitirCotizacion, obtenerCotizacion } from "@/lib/cotizaciones";
+import type { SesionUsuario } from "@/domain/admin";
+import { conEmisionExclusiva, emitirCotizacion, obtenerCotizacion } from "@/lib/cotizaciones";
 import { registrarActividad } from "@/lib/activity";
 import { guardarCaratula } from "@/lib/polizas";
 import { ambienteEmisionGs } from "@/lib/gs/config";
@@ -33,7 +34,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const r = await cargar(params.id);
   if (r.error) return r.error;
-  const { sesion, cot } = r;
+  const respuesta = await conEmisionExclusiva(r.cot.id, () => emitir(req, r.sesion, r.cot.id));
+  return (
+    respuesta ??
+    NextResponse.json({ error: "La cotización ya se está emitiendo." }, { status: 409 })
+  );
+}
+
+async function emitir(req: Request, sesion: SesionUsuario, id: number) {
+  const cot = obtenerCotizacion(id)!;
   if (cot.estado === "EMITIDA" || cot.estado === "CANCELADA") {
     return NextResponse.json({ error: "La cotización ya no se puede emitir." }, { status: 409 });
   }
