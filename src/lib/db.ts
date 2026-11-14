@@ -199,6 +199,40 @@ function inicializarEsquema(database: Database.Database): void {
       ON policy_payments(poliza_id, statement_id)
       WHERE statement_id IS NOT NULL AND recibo IS NULL;
   `);
+  if (!columnasPolizas.some((c) => c.name === "estatus")) {
+    database.exec("ALTER TABLE policies ADD COLUMN estatus TEXT NOT NULL DEFAULT 'VIGENTE'");
+  }
+  if (!columnasPolizas.some((c) => c.name === "fecha_cancelacion")) {
+    database.exec("ALTER TABLE policies ADD COLUMN fecha_cancelacion TEXT");
+  }
+  // Recibos tal como los reporta la aseguradora (proceso diario de cobranza).
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS policy_receipts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poliza_id INTEGER NOT NULL,
+      id_recibo TEXT NOT NULL,
+      folio TEXT,
+      numero_endoso INTEGER NOT NULL DEFAULT 0,
+      tipo_recibo TEXT,
+      situacion TEXT NOT NULL,
+      prima_total REAL NOT NULL DEFAULT 0,
+      vigencia_inicio TEXT,
+      vigencia_fin TEXT,
+      fecha_vencimiento TEXT,
+      actualizado_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (poliza_id) REFERENCES policies(id) ON DELETE CASCADE,
+      UNIQUE (poliza_id, id_recibo)
+    );
+
+    CREATE TABLE IF NOT EXISTS cobranza_ejecuciones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fecha_corte TEXT NOT NULL,
+      inicio TEXT NOT NULL DEFAULT (datetime('now')),
+      fin TEXT,
+      resultados TEXT,
+      reporte TEXT
+    );
+  `);
 }
 
 // Carpeta para archivos subidos (documentos de agentes, plantillas de

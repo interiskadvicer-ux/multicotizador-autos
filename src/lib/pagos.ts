@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { db, directorioArchivos } from "@/lib/db";
 
-export type OrigenPago = "MANUAL" | "ESTADO_CUENTA";
+// WS_ASEGURADORA: registrado por el proceso diario de cobranza.
+export type OrigenPago = "MANUAL" | "ESTADO_CUENTA" | "WS_ASEGURADORA";
 
 export interface Pago {
   id: number;
@@ -96,7 +97,7 @@ export function listarPagos(polizaId?: number, limite = 200): Pago[] {
   return rows.map(mapPago);
 }
 
-export function registrarPago(input: PagoInput, usuarioId: number): number {
+export function registrarPago(input: PagoInput, usuarioId: number | null): number {
   const info = db
     .prepare(
       `INSERT INTO policy_payments
@@ -163,7 +164,7 @@ export function guardarEstadoCuenta(
   nombreOriginal: string,
   extension: "pdf" | "csv" | "xlsx",
   datos: Buffer,
-  usuarioId: number,
+  usuarioId: number | null,
 ): { id: number; cargadoEl: string | null } {
   const hash = crypto.createHash("sha256").update(datos).digest("hex");
   const previo = db

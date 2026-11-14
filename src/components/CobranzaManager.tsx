@@ -486,6 +486,8 @@ export default function CobranzaManager({ esAdmin }: { esAdmin: boolean }) {
                         >
                           Estado de cuenta
                         </a>
+                      ) : p.origen === "WS_ASEGURADORA" ? (
+                        <span className="text-slate-600">Aseguradora (automático)</span>
                       ) : (
                         <span className="text-slate-600">Manual</span>
                       )}

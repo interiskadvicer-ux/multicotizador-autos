@@ -1,0 +1,10 @@
+[Unit]
+Description=Cobranza diaria a las 7:00 (hora del centro de México)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 America/Mexico_City
+# Si el servidor estaba apagado a las 7:00, corre al encender.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
