@@ -82,12 +82,14 @@ export async function recibosPolizaAfirme(numero: string): Promise<Recibo[]> {
   }
   const porId = new Map<string, Recibo>();
   let vacios = 0;
+  let fallidos = 0;
   for (let inciso = 1; inciso <= MAX_INCISOS; inciso++) {
     let recibos: Recibo[];
     try {
       recibos = await recibosInciso(numeroPoliza, inciso);
     } catch (err) {
       if (inciso === 1) throw err;
+      fallidos++;
       recibos = [];
     }
     if (recibos.length === 0) {
@@ -97,6 +99,11 @@ export async function recibosPolizaAfirme(numero: string): Promise<Recibo[]> {
     }
     vacios = 0;
     for (const r of recibos) if (!porId.has(r.idRecibo)) porId.set(r.idRecibo, r);
+  }
+  // Con incisos sin respuesta no se puede afirmar que toda la póliza está cancelada.
+  const cargos = [...porId.values()].filter((r) => r.tipoRecibo !== "RD" && r.primaTotal >= 0);
+  if (fallidos && cargos.length && cargos.every((r) => r.situacion === "CANCELADO")) {
+    throw new AfirmeError("Consulta incompleta: algunos incisos no respondieron.");
   }
   return Array.from(porId.values()).sort(
     (a, b) =>
