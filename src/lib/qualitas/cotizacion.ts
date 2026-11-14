@@ -5,6 +5,7 @@
 import { paqueteEstandar, type PaqueteEstandar } from "@/domain/types";
 import type {
   Cobertura,
+  CoberturaOpcional,
   CotizacionRequest,
   CotizacionResultado,
   DesglosePrima,
@@ -13,6 +14,7 @@ import { getQualitasConfig } from "./config";
 import { escapeXml, extractAttr, extractTag, soapCall, unescapeXml } from "./soap";
 import { interpretarError } from "./errores";
 import { estadoDesdeCP } from "./estados";
+import { adicionalesSolicitadas } from "@/lib/coberturas-adicionales";
 
 const SOAP_ACTION = "http://qualitas.com.mx/obtenerNuevaEmision";
 const NS = "http://qualitas.com.mx/";
@@ -141,6 +143,20 @@ const COBERTURAS_POR_PAQUETE: Record<PaqueteEstandar, string[]> = {
   RC: ["4", "5", "6", "7", "11", "14", "22", "47"],
 };
 
+// Coberturas adicionales (Anexo 4) que el negocio 08849 acepta en la Amplia sin
+// datos extra; Quálitas asigna la suma y el deducible.
+const ADICIONALES_QUALITAS: Array<{ no: string; nombre: string }> = [
+  { no: "12", nombre: "Exención de deducible de daños materiales" },
+  { no: "40", nombre: "Exención de deducible de robo total" },
+  { no: "26", nombre: "Cancelación de deducible por vuelco o colisión" },
+  { no: "17", nombre: "Gastos de transporte por pérdida total" },
+];
+
+function adicionalesContratadas(request: CotizacionRequest): string[] {
+  const elegir = adicionalesSolicitadas(request, "qualitas");
+  return ADICIONALES_QUALITAS.filter((a) => elegir?.has(a.no)).map((a) => a.no);
+}
+
 export function xmlCoberturasNegocio(request: CotizacionRequest): string {
   const cob = request.coberturasPersonalizadas ?? {};
   const valores: Record<string, [number, string, number]> = {
@@ -151,7 +167,10 @@ export function xmlCoberturasNegocio(request: CotizacionRequest): string {
     "6": [100_000, "0", 0],
     "47": [1_000_000, "14", 0],
   };
-  return COBERTURAS_POR_PAQUETE[paqueteEstandar(request.paquete)]
+  return [
+    ...COBERTURAS_POR_PAQUETE[paqueteEstandar(request.paquete)],
+    ...adicionalesContratadas(request),
+  ]
     .map((no) => {
       const [suma, tipoSuma, deducible] = valores[no] ?? [0, "0", 0];
       return (
@@ -325,6 +344,24 @@ export async function cotizarQualitasReal(
     movimiento.match(/<DatosVehiculo[\s\S]*?<\/DatosVehiculo>/)?.[0] ?? "";
   const coberturasResp = parseCoberturas(vehiculoXml);
   const coberturas = construirCoberturasDesdeRespuesta(coberturasResp);
+  const elegir = adicionalesSolicitadas(request, aseguradoraId);
+  const opcionales: CoberturaOpcional[] = elegir
+    ? ADICIONALES_QUALITAS.map(({ no, nombre }) => ({
+        id: no,
+        nombre,
+        contratada: coberturasResp.has(no),
+      }))
+    : [];
+  for (const { no, nombre } of ADICIONALES_QUALITAS) {
+    const c = coberturasResp.get(no);
+    if (!elegir || !c) continue;
+    coberturas.push({
+      nombre,
+      incluida: true,
+      sumaAsegurada: formatSuma(c.suma, ""),
+      deducible: formatDeducible(c.deducible),
+    });
+  }
 
   const primasXml =
     movimiento.match(/<Primas>[\s\S]*?<\/Primas>/)?.[0] ?? movimiento;
@@ -372,6 +409,7 @@ export async function cotizarQualitasReal(
     status: "success",
     prima,
     coberturas,
+    opcionales: opcionales.length ? opcionales : undefined,
     vigencia: { inicio: fechaISO(inicio), fin: fechaISO(fin) },
     tiempoRespuestaMs: Date.now() - inicioTiempo,
     origen: "real",
