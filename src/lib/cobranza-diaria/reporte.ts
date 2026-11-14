@@ -156,8 +156,15 @@ function pendientes(hoy: string): FilaPendiente[] {
     agente: p.agente,
     formaPago: p.forma_pago ?? "ANUAL",
   });
-  const agregar = (p: PolizaVigente, recibo: string, inicio: string, monto: number) => {
-    const limite = sumarDias(inicio, gracia);
+  const agregar = (
+    p: PolizaVigente,
+    recibo: string,
+    inicio: string,
+    monto: number,
+    vencimiento: string | null = null,
+  ) => {
+    // Si la aseguradora informa el vencimiento del recibo, manda sobre la gracia por omisión.
+    const limite = vencimiento && vencimiento >= inicio ? vencimiento : sumarDias(inicio, gracia);
     filas.push({
       ...base(p),
       recibo,
@@ -182,7 +189,7 @@ function pendientes(hoy: string): FilaPendiente[] {
       for (const r of emitidos) {
         const inicio = r.vigencia_inicio ?? p.vigencia_inicio;
         if (inicio > horizonte) continue;
-        agregar(p, r.folio || r.id_recibo, inicio, r.prima_total);
+        agregar(p, r.folio || r.id_recibo, inicio, r.prima_total, r.fecha_vencimiento);
       }
       continue;
     }
