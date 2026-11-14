@@ -29,14 +29,13 @@ export function numeroHdi(numPoliza: string, certificado: number): string {
   return `${sinCeros(numPoliza)}-${certificado}`;
 }
 
-// Acepta "193-1", "193", "0000000193" o "00619-0000000193-1".
-function coincideNumero(capturado: string, numPoliza: string, certificado: number): boolean {
+// Acepta "193-1", "193" o "0000000193" (certificado 1) y "00619-0000000193-1":
+// los dos últimos grupos son póliza y certificado.
+export function coincideNumero(capturado: string, numPoliza: string, certificado: number): boolean {
   const grupos = capturado.match(/\d+/g) ?? [];
-  const poliza = sinCeros(numPoliza);
-  const i = grupos.findIndex((g) => sinCeros(g) === poliza && g.length >= poliza.length);
-  if (i < 0) return false;
-  const siguiente = grupos[i + 1];
-  return siguiente === undefined || Number(siguiente) === certificado;
+  if (grupos.length === 0) return false;
+  const [poliza, cert] = grupos.length === 1 ? [grupos[0], "1"] : grupos.slice(-2);
+  return sinCeros(poliza) === sinCeros(numPoliza) && Number(cert) === certificado;
 }
 
 function formaPago(desc: string): FormaPagoPoliza {
