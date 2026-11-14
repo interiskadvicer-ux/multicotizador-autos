@@ -4,6 +4,12 @@ import { buscarUsuarioPorEmail, verifyPassword } from "@/lib/auth";
 import { crearToken, COOKIE_SESION, MAX_AGE_SESION } from "@/lib/session";
 import { registrarActividad } from "@/lib/activity";
 import { solicitudPorEmail } from "@/lib/agentes";
+import {
+  ipCliente,
+  limpiarFallosLogin,
+  loginBloqueado,
+  registrarFalloLogin,
+} from "@/lib/limite-login";
 import type { Rol } from "@/domain/admin";
 
 export async function POST(req: Request) {
@@ -20,6 +26,14 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "Correo y contraseña son obligatorios." },
       { status: 400 },
+    );
+  }
+
+  const ip = ipCliente(req);
+  if (loginBloqueado(email, ip)) {
+    return NextResponse.json(
+      { error: "Demasiados intentos fallidos. Espera 15 minutos e intenta de nuevo." },
+      { status: 429 },
     );
   }
 
@@ -45,6 +59,7 @@ export async function POST(req: Request) {
   }
 
   if (!row || !ok) {
+    registrarFalloLogin(email, ip);
     return NextResponse.json(
       { error: "Correo o contraseña incorrectos." },
       { status: 401 },
@@ -57,6 +72,7 @@ export async function POST(req: Request) {
     );
   }
 
+  limpiarFallosLogin(email);
   const sesion = {
     id: row.id,
     email: row.email,
