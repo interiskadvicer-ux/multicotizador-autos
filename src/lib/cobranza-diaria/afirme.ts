@@ -84,8 +84,8 @@ export function aplicarRecibos(
       );
       if (esDevolucion(r) || r.situacion !== "PAGADO") continue;
       const yaRegistrado = db
-        .prepare("SELECT 1 FROM policy_payments WHERE poliza_id = ? AND recibo = ?")
-        .get(polizaId, r.idRecibo);
+        .prepare("SELECT 1 FROM policy_payments WHERE poliza_id = ? AND recibo IN (?, ?)")
+        .get(polizaId, r.idRecibo, r.folio || r.idRecibo);
       if (yaRegistrado) continue;
       // Un pago capturado a mano por el mismo importe y sin recibo es este.
       const manual = db
