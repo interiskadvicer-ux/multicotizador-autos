@@ -194,7 +194,9 @@ function pendientes(hoy: string): FilaPendiente[] {
     for (let k = cubiertos; k < n; k++) {
       const inicio = sumarMeses(p.vigencia_inicio, (k * 12) / n);
       if (inicio > horizonte) break;
-      agregar(p, `${k + 1} de ${n}`, inicio, montoRecibo);
+      // El primer recibo no cubierto descuenta los abonos parciales.
+      const monto = k === cubiertos ? montoRecibo * (k + 1) - p.pagado : montoRecibo;
+      if (monto > 1) agregar(p, `${k + 1} de ${n}`, inicio, monto);
     }
   }
   return filas.sort((a, b) => a.fechaLimite.localeCompare(b.fechaLimite));
