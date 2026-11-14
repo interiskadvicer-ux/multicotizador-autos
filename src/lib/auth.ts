@@ -121,10 +121,10 @@ export async function getSesion(): Promise<SesionUsuario | null> {
   if (!token) return null;
   const sesion = await verificarToken(token);
   if (!sesion) return null;
-  // Verifica que el usuario siga activo.
+  // Rol y datos vigentes desde la base: un cambio de rol aplica de inmediato.
   const usuario = obtenerUsuario(sesion.id);
   if (!usuario || !usuario.activo) return null;
-  return sesion;
+  return { id: usuario.id, email: usuario.email, nombre: usuario.nombre, rol: usuario.rol };
 }
 
 export function tieneAcceso(rol: Rol, permitidos: Rol[]): boolean {
