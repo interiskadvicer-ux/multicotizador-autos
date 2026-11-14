@@ -101,7 +101,7 @@ export async function recibosPolizaAfirme(numero: string): Promise<Recibo[]> {
     for (const r of recibos) if (!porId.has(r.idRecibo)) porId.set(r.idRecibo, r);
   }
   // Con incisos sin respuesta no se puede afirmar que toda la póliza está cancelada.
-  const cargos = [...porId.values()].filter((r) => r.tipoRecibo !== "RD" && r.primaTotal >= 0);
+  const cargos = Array.from(porId.values()).filter((r) => r.tipoRecibo !== "RD" && r.primaTotal >= 0);
   if (fallidos && cargos.length && cargos.every((r) => r.situacion === "CANCELADO")) {
     throw new AfirmeError("Consulta incompleta: algunos incisos no respondieron.");
   }
