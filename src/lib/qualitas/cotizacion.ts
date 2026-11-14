@@ -21,6 +21,13 @@ const NS = "http://qualitas.com.mx/";
 
 export const USOS_VEHICULO = ["01", "05"] as const;
 
+export const FORMA_PAGO_QUALITAS: Record<string, string> = {
+  CONTADO: "C",
+  SEMESTRAL: "S",
+  TRIMESTRAL: "T",
+  MENSUAL: "M",
+};
+
 // Paquete del multicotizador -> código de paquete Quálitas (Anexo 5).
 export const PAQUETE_A_QUALITAS: Record<PaqueteEstandar, string> = {
   AMPLIA: "01",
@@ -225,7 +232,7 @@ function construirXmlCotizacion(
     `<FechaTermino>${fechaISO(fin)}</FechaTermino>` +
     "<Moneda>0</Moneda>" +
     `<Agente>${escapeXml(cfg.agente)}</Agente>` +
-    "<FormaPago>C</FormaPago>" +
+    `<FormaPago>${FORMA_PAGO_QUALITAS[request.formaPago] ?? "C"}</FormaPago>` +
     "<TarifaValores>LINEA</TarifaValores>" +
     "<TarifaCuotas>LINEA</TarifaCuotas>" +
     "<TarifaDerechos>LINEA</TarifaDerechos>" +

@@ -10,6 +10,7 @@ import {
   PAQUETE_A_QUALITAS,
   USOS_VEHICULO,
   digitoVerificador,
+  FORMA_PAGO_QUALITAS,
   xmlCoberturasNegocio,
 } from "./cotizacion";
 import { escapeXml, extractAttr, extractTag, soapCall, unescapeXml } from "./soap";
@@ -19,13 +20,6 @@ import { estadoDesdeCP } from "./estados";
 
 const SOAP_ACTION = "http://qualitas.com.mx/obtenerNuevaEmision";
 const NS = "http://qualitas.com.mx/";
-
-const FORMA_PAGO_QUALITAS: Record<string, string> = {
-  CONTADO: "C",
-  SEMESTRAL: "S",
-  TRIMESTRAL: "T",
-  MENSUAL: "M",
-};
 
 export function ambienteEmision(): Ambiente {
   return process.env.QUALITAS_EMISION_AMBIENTE === "produccion" ? "produccion" : "pruebas";
