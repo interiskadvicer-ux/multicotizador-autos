@@ -77,7 +77,7 @@ export async function generarPdfCotizacion(
   doc.setTextColor(15, 23, 42);
   doc.text("Cotización de Seguro de Auto", margin, 18);
   doc.setFontSize(10);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(51, 65, 85);
   doc.text(`Fecha de emisión: ${fecha}`, margin, 25);
 
   // Datos del cliente y vehículo.
@@ -99,7 +99,7 @@ export async function generarPdfCotizacion(
   ].filter(Boolean) as string[];
 
   doc.setFontSize(10);
-  doc.setTextColor(51, 65, 85);
+  doc.setTextColor(15, 23, 42);
   let y = 33;
   for (const linea of clienteLineas) {
     doc.text(linea, margin, y);
@@ -188,15 +188,21 @@ export async function generarPdfCotizacion(
       ],
       body: covFilas,
       theme: "grid",
-      styles: { fontSize: 7, cellPadding: 1.8, textColor: [51, 65, 85] },
-      headStyles: { fillColor: [15, 118, 110], textColor: 255, fontSize: 7 },
+      styles: {
+        fontSize: 7,
+        cellPadding: 1.8,
+        textColor: [15, 23, 42],
+        lineColor: [71, 85, 105],
+        lineWidth: 0.2,
+      },
+      headStyles: { fillColor: [23, 37, 84], textColor: 255, fontSize: 7 },
       columnStyles: { 0: { fontStyle: "bold", cellWidth: 38 } },
       didParseCell: (data) => {
         if (data.section === "head" && data.row.index === 1) {
           const r = delPaquete[data.column.index - 1]?.r;
           const esMejor = r?.prima?.primaTotal === mejorPorPaquete.get(p);
-          data.cell.styles.fillColor = esMejor ? [220, 252, 231] : [240, 253, 250];
-          data.cell.styles.textColor = esMejor ? [6, 95, 70] : [15, 23, 42];
+          data.cell.styles.fillColor = esMejor ? [134, 239, 172] : [203, 213, 225];
+          data.cell.styles.textColor = esMejor ? [5, 46, 22] : [15, 23, 42];
           data.cell.styles.fontSize = 9;
           return;
         }
@@ -205,7 +211,7 @@ export async function generarPdfCotizacion(
             ? data.cell.text.join(" ")
             : String(data.cell.text);
           if (txt.includes("No incluida")) {
-            data.cell.styles.textColor = [148, 163, 184];
+            data.cell.styles.textColor = [71, 85, 105];
           }
         }
       },
@@ -219,7 +225,7 @@ export async function generarPdfCotizacion(
     finalY = 18;
   }
   doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
+  doc.setTextColor(51, 65, 85);
   const nota =
     "En verde: mejor precio de cada paquete. Prima total anual en pesos mexicanos (MXN), IVA incluido, vigencia 1 año. " +
     "Coberturas y sumas aseguradas de carácter informativo, sujetas a las condiciones generales de cada aseguradora y a su validación y aceptación.";
