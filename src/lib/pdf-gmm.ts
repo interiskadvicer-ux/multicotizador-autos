@@ -37,7 +37,7 @@ export async function generarPdfGmm(
   doc.setFontSize(15);
   doc.text("Cotización de Gastos Médicos Mayores Individual", margen, 18);
   doc.setFontSize(11);
-  doc.text("AURA", margen, 25);
+  doc.text("Plenit · AURA", margen, 25);
   doc.setFontSize(9);
   doc.setTextColor(51, 65, 85);
   doc.text(`Fecha: ${fecha}`, margen, 31);
@@ -134,5 +134,5 @@ export async function generarPdfGmm(
     margen,
     (doc.lastAutoTable?.finalY ?? 230) + 8,
   );
-  doc.save(`cotizacion-gmm-aura-${new Date().toISOString().slice(0, 10)}.pdf`);
+  doc.save(`cotizacion-gmm-plenit-aura-${new Date().toISOString().slice(0, 10)}.pdf`);
 }

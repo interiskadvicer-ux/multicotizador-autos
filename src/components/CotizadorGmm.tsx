@@ -134,7 +134,7 @@ export default function CotizadorGmm({ agente }: { agente: string }) {
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Gastos Médicos Mayores Individual</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Cotizador AURA (tarifas del Excel GMMI 241125).
+          Cotizador Plenit AURA (tarifas del Excel GMMI 241125).
         </p>
       </header>
 

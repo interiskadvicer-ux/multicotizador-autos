@@ -62,7 +62,7 @@ export async function POST(req: Request) {
   registrarActividad(
     sesion,
     "COTIZAR",
-    `Cotizó GMM AURA (${body.asegurados.length} asegurado(s), SA ${body.sumaAsegurada})`,
+    `Cotizó GMM Plenit AURA (${body.asegurados.length} asegurado(s), SA ${body.sumaAsegurada})`,
   );
   return NextResponse.json({ resultado });
 }

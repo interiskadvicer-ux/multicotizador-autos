@@ -6,7 +6,7 @@ import CotizadorGmmBanorte from "./CotizadorGmmBanorte";
 import type { ProductoBanorte } from "@/lib/gmm/banorte/productos";
 
 const PRODUCTOS: { clave: "AURA" | ProductoBanorte; nombre: string }[] = [
-  { clave: "AURA", nombre: "AURA" },
+  { clave: "AURA", nombre: "Plenit AURA" },
   { clave: "ESENCIAL", nombre: "Banorte Esencial" },
   { clave: "TOTAL", nombre: "Banorte Total" },
   { clave: "TRANSFORMA", nombre: "Banorte Plan Transforma" },
