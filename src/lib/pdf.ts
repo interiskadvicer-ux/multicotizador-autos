@@ -209,13 +209,24 @@ export function generarPdfCotizacion(
 
     autoTable(doc, {
       startY: startY + 3,
-      head: [["Cobertura", ...delPaquete.map((x) => x.nombre)]],
+      head: [
+        ["Cobertura", ...delPaquete.map((x) => x.nombre)],
+        ["Prima total", ...delPaquete.map(({ r }) => formatMXN(r.prima!.primaTotal))],
+      ],
       body: covFilas,
       theme: "grid",
       styles: { fontSize: 7, cellPadding: 1.8, textColor: [51, 65, 85] },
       headStyles: { fillColor: [15, 118, 110], textColor: 255, fontSize: 7 },
       columnStyles: { 0: { fontStyle: "bold", cellWidth: 38 } },
       didParseCell: (data) => {
+        if (data.section === "head" && data.row.index === 1) {
+          const r = delPaquete[data.column.index - 1]?.r;
+          const esMejor = r?.prima?.primaTotal === mejorPorPaquete.get(p);
+          data.cell.styles.fillColor = esMejor ? [220, 252, 231] : [240, 253, 250];
+          data.cell.styles.textColor = esMejor ? [6, 95, 70] : [15, 23, 42];
+          data.cell.styles.fontSize = 9;
+          return;
+        }
         if (data.section === "body" && data.column.index > 0) {
           const txt = Array.isArray(data.cell.text)
             ? data.cell.text.join(" ")
