@@ -142,7 +142,7 @@ export default function QuoteResults({
                   : undefined
               }
               onClick={() =>
-                generarPdfCotizacion(request, resultados, paquetesElegidosPdf)
+                void generarPdfCotizacion(request, resultados, paquetesElegidosPdf)
               }
               className="inline-flex items-center gap-2 rounded-xl border border-sky-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
             >

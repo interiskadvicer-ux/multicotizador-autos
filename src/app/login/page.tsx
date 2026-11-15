@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -46,8 +47,18 @@ function LoginForm() {
         className="w-full max-w-sm space-y-5 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
       >
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Interiskad</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1>
+            <Image
+              src="/logo-interisk.jpg"
+              alt="Interisk Advicer"
+              width={800}
+              height={515}
+              className="mx-auto h-auto w-56"
+              unoptimized
+              priority
+            />
+          </h1>
+          <p className="mt-3 text-center text-sm text-slate-500">
             Ingresa con tu correo y contraseña.
           </p>
         </div>

@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { ROLES, type Rol, type SesionUsuario } from "@/domain/admin";
 
@@ -59,7 +60,12 @@ export default function Sidebar({ sesion, solicitudesPendientes }: Props) {
   return (
     <>
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white lg:hidden">
-        <span className="text-sm font-bold">Interiskad · Portal de agentes</span>
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <span className="rounded bg-white px-1.5 py-0.5">
+            <Image src="/logo-interisk.jpg" alt="Interisk Advicer" width={56} height={36} unoptimized />
+          </span>
+          Portal de agentes
+        </span>
         <button
           type="button"
           onClick={() => setAbierto((a) => !a)}
@@ -74,8 +80,18 @@ export default function Sidebar({ sesion, solicitudesPendientes }: Props) {
         } w-full shrink-0 bg-slate-900 text-slate-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-60 lg:flex-col`}
       >
         <div className="hidden px-5 py-5 lg:block">
-          <div className="text-lg font-bold text-white">Interiskad</div>
-          <div className="text-xs text-slate-400">Portal de agentes</div>
+          <div className="rounded-xl bg-white p-2">
+            <Image
+              src="/logo-interisk.jpg"
+              alt="Interisk Advicer"
+              width={800}
+              height={515}
+              className="h-auto w-full"
+              unoptimized
+              priority
+            />
+          </div>
+          <div className="mt-2 text-center text-xs text-slate-400">Portal de agentes</div>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4 lg:py-0">
           {SECCIONES.map((sec) => {

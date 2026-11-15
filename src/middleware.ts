@@ -31,5 +31,5 @@ export async function middleware(req: NextRequest) {
 
 // Aplica a páginas; excluye APIs (validan por su cuenta), estáticos y assets.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|fonts).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|fonts|logo-interisk.jpg).*)"],
 };

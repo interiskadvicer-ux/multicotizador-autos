@@ -25,15 +25,35 @@ const FORMA_PAGO_LABEL: Record<CotizacionRequest["formaPago"], string> = {
 
 type DocConTabla = jsPDF & { lastAutoTable?: { finalY: number } };
 
+const LOGO_URL = "/logo-interisk.jpg";
+const LOGO_PROPORCION = 515 / 800;
+
+async function cargarLogo(): Promise<string | null> {
+  try {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const lector = new FileReader();
+      lector.onload = () => resolve(String(lector.result));
+      lector.onerror = () => resolve(null);
+      lector.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 // Genera y descarga un PDF con la comparativa de cotizaciones para presentar
 // al cliente: una tabla de prima total por aseguradora y paquete, y las
 // coberturas de cada paquete. No incluye información interna (descuentos).
 // Se ejecuta 100% en el navegador.
-export function generarPdfCotizacion(
+export async function generarPdfCotizacion(
   request: CotizacionRequest,
   resultados: CotizacionResultado[],
   soloPaquetes?: readonly Paquete[],
-): void {
+): Promise<void> {
+  const logo = await cargarLogo();
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -49,6 +69,10 @@ export function generarPdfCotizacion(
   });
 
   // Encabezado.
+  if (logo) {
+    const ancho = 42;
+    doc.addImage(logo, "JPEG", pageWidth - margin - ancho, 6, ancho, ancho * LOGO_PROPORCION);
+  }
   doc.setFontSize(18);
   doc.setTextColor(15, 23, 42);
   doc.text("Cotización de Seguro de Auto", margin, 18);
