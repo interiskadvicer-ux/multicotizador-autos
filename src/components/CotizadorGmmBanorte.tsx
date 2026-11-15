@@ -42,8 +42,10 @@ export default function CotizadorGmmBanorte({ producto, agente }: { producto: Pr
       .catch((e: Error) => setError(e.message));
   }, [producto]);
 
-  const cambiarFila = (i: number, cambio: Partial<Fila>) =>
+  const cambiarFila = (i: number, cambio: Partial<Fila>) => {
+    setResultado(null);
     setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, ...cambio } : f)));
+  };
 
   async function cotizar() {
     setError(null);
@@ -91,12 +93,13 @@ export default function CotizadorGmmBanorte({ producto, agente }: { producto: Pr
               <select
                 className={campo}
                 value={String(valores[c.clave] ?? "")}
-                onChange={(e) =>
+                onChange={(e) => {
+                  setResultado(null);
                   setValores((v) => ({
                     ...v,
                     [c.clave]: c.opciones.find((o) => String(o) === e.target.value) ?? e.target.value,
-                  }))
-                }
+                  }));
+                }}
               >
                 {c.opciones.map((o) => (
                   <option key={String(o)} value={String(o)}>
@@ -128,7 +131,10 @@ export default function CotizadorGmmBanorte({ producto, agente }: { producto: Pr
                 type="button"
                 className="rounded-lg px-2 text-sm text-red-600 hover:bg-red-50 disabled:invisible"
                 disabled={filas.length === 1}
-                onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}
+                onClick={() => {
+                  setResultado(null);
+                  setFilas((fs) => fs.filter((_, j) => j !== i));
+                }}
               >
                 Quitar
               </button>
@@ -139,7 +145,10 @@ export default function CotizadorGmmBanorte({ producto, agente }: { producto: Pr
           type="button"
           className="mt-3 text-sm font-semibold text-sky-700 hover:underline disabled:text-slate-400"
           disabled={filas.length >= 8}
-          onClick={() => setFilas((fs) => [...fs, { nombre: "", sexo: "", edad: "" }])}
+          onClick={() => {
+            setResultado(null);
+            setFilas((fs) => [...fs, { nombre: "", sexo: "", edad: "" }]);
+          }}
         >
           + Agregar asegurado
         </button>
