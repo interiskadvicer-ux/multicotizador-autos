@@ -116,69 +116,18 @@ export function generarPdfCotizacion(
     mejorPorPaquete.set(p, Math.min(...primas));
   }
 
-  // Tabla comparativa: prima total por aseguradora y paquete.
-  const filas = aseguradoras.map(([id, nombre]) => [
-    nombre,
-    ...paquetes.map((p) => {
-      const r = buscar(id, p);
-      if (!r) return "No disponible";
-      return formatMXN(r.prima!.primaTotal);
-    }),
-  ]);
-
-  autoTable(doc, {
-    startY: y + 3,
-    head: [["Aseguradora", ...paquetes.map((p) => PAQUETE_LABEL[p])]],
-    body: filas,
-    theme: "grid",
-    styles: {
-      fontSize: 9,
-      cellPadding: 2.5,
-      textColor: [51, 65, 85],
-      halign: "center",
-    },
-    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontSize: 9 },
-    columnStyles: { 0: { fontStyle: "bold", halign: "left" } },
-    didParseCell: (data) => {
-      if (data.section !== "body" || data.column.index === 0) return;
-      const txt = Array.isArray(data.cell.text)
-        ? data.cell.text.join(" ")
-        : String(data.cell.text);
-      const p = paquetes[data.column.index - 1];
-      const [id] = aseguradoras[data.row.index];
-      const esMejor =
-        buscar(id, p)?.prima?.primaTotal === mejorPorPaquete.get(p);
-      if (esMejor) {
-        data.cell.styles.fillColor = [220, 252, 231];
-        data.cell.styles.fontStyle = "bold";
-        data.cell.styles.textColor = [6, 95, 70];
-      } else if (txt.includes("No disponible")) {
-        data.cell.styles.textColor = [148, 163, 184];
-      } else {
-        data.cell.styles.fontStyle = "bold";
-        data.cell.styles.textColor = [15, 23, 42];
-      }
-    },
-  });
-
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    "En verde: mejor precio de cada paquete. Prima total anual en pesos mexicanos (MXN), IVA incluido, vigencia 1 año.",
-    margin,
-    (doc.lastAutoTable?.finalY ?? y + 40) + 5,
-  );
-
   // Detalle de coberturas por paquete, comparado por aseguradora.
   for (const p of paquetes) {
+    // De la prima más baja (izquierda) a la más alta (derecha).
     const delPaquete = aseguradoras
       .map(([id, nombre]) => ({ nombre, r: buscar(id, p) }))
       .filter((x): x is { nombre: string; r: CotizacionResultado } =>
         Boolean(x.r),
-      );
+      )
+      .sort((a, b) => a.r.prima!.primaTotal - b.r.prima!.primaTotal);
     if (delPaquete.length === 0) continue;
 
-    let startY = (doc.lastAutoTable?.finalY ?? y + 40) + 14;
+    let startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 14 : y + 6;
     if (startY > pageHeight - 50) {
       doc.addPage();
       startY = 18;
@@ -248,6 +197,7 @@ export function generarPdfCotizacion(
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
   const nota =
+    "En verde: mejor precio de cada paquete. Prima total anual en pesos mexicanos (MXN), IVA incluido, vigencia 1 año. " +
     "Coberturas y sumas aseguradas de carácter informativo, sujetas a las condiciones generales de cada aseguradora y a su validación y aceptación.";
   const notaLineas = doc.splitTextToSize(nota, pageWidth - margin * 2);
   doc.text(notaLineas, margin, finalY);

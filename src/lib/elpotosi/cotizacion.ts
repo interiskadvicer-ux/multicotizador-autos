@@ -254,7 +254,7 @@ export function coberturasHomologadas(coberturas: CoberturaElPotosi[]): Cobertur
         : c.suma_Asegurada > 0
           ? dinero(c.suma_Asegurada)
           : "Amparada",
-      deducible: conDeducible && c.deducible > 0 ? `${c.deducible}%` : "N/A",
+      deducible: conDeducible ? `${c.deducible}%` : "N/A",
     };
   });
 }
