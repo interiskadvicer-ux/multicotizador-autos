@@ -6,6 +6,8 @@ import {
   type BusquedaVehiculo,
 } from "@/lib/qualitas/tarifas";
 
+const CATEGORIA_SERVICIO_PUBLICO = "111";
+
 // Búsqueda en el catálogo de vehículos de Quálitas (WSTarifas) para obtener la
 // ClaveAmis a partir de marca / línea / versión / año.
 export async function GET(req: Request) {
@@ -29,7 +31,11 @@ export async function GET(req: Request) {
   }
 
   try {
-    const vehiculos = await buscarVehiculos(filtros);
+    // Categoría 111 (servicio público): el negocio la rechaza con "Servicio no
+    // valido para esta Categoria".
+    const vehiculos = (await buscarVehiculos(filtros)).filter(
+      (v) => v.categoria !== CATEGORIA_SERVICIO_PUBLICO,
+    );
     return NextResponse.json({ vehiculos });
   } catch (err) {
     if (err instanceof QBCenterNoConfigurado) {

@@ -75,18 +75,17 @@ function masParecida(
   opciones: OpcionVehiculo[],
   uso: "PARTICULAR" | "COMERCIAL",
 ): OpcionVehiculo | undefined {
+  const noParticular = (o: OpcionVehiculo) =>
+    NO_PARTICULAR.test(
+      o.etiqueta.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
+    );
+  const particulares = opciones.filter((o) => !noParticular(o));
+  const candidatas =
+    uso === "PARTICULAR" && particulares.length > 0 ? particulares : opciones;
   let mejor: OpcionVehiculo | undefined;
   let mejorScore = 0;
-  for (const o of opciones) {
-    let score = similitud(referencia, o.version || o.etiqueta);
-    if (
-      uso === "PARTICULAR" &&
-      NO_PARTICULAR.test(
-        o.etiqueta.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
-      )
-    ) {
-      score *= 0.5;
-    }
+  for (const o of candidatas) {
+    const score = similitud(referencia, o.version || o.etiqueta);
     if (score > mejorScore) {
       mejor = o;
       mejorScore = score;
