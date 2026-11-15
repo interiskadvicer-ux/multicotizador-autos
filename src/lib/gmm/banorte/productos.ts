@@ -176,6 +176,8 @@ export function cotizarBanorte(s: SolicitudBanorte): ResultadoBanorte {
     libro.poner(c.celda, elegido);
   }
   if (s.asegurados.length > cfg.filas.length) throw new Error(`Máximo ${cfg.filas.length} asegurados.`);
+  if (texto(libro.valor(cfg.campos.find((c) => c.clave === "cotizacion")!.celda)) === "INDIVIDUAL" && s.asegurados.length > 1)
+    throw new Error("La cotización individual es para un solo asegurado. Elige cotización familiar para agregar más.");
   cfg.filas.forEach((f, i) => {
     const a = s.asegurados[i];
     libro.poner(C(`C${f}`), a ? a.nombre : null);
@@ -195,14 +197,22 @@ export function cotizarBanorte(s: SolicitudBanorte): ResultadoBanorte {
       total: num(C(`J${f}`)),
     };
   });
+  const avisos = cfg.mensajes.map((m) => texto(libro.valor(C(m)))).filter((m) => m && m !== "OK" && !m.startsWith("APLICA"));
+  const asegurados = s.asegurados.map((a, i) => ({
+    ...a,
+    parentesco: texto(libro.valor(C(`B${cfg.filas[i]}`))) || (i === 0 ? "Titular" : `Asegurado ${i + 1}`),
+    aviso: texto(libro.valor(C(`F${cfg.filas[i]}`))),
+  }));
+  const rechazos = [
+    ...asegurados.filter((a) => a.aviso).map((a) => `${a.nombre || a.parentesco}: ${a.aviso}`),
+    ...avisos.filter((m) => /INV[AÁ]LIDA|NO PERMITID/i.test(m)),
+  ];
+  if (rechazos.length) throw new Error(`Banorte no permite esta cotización. ${rechazos.join(". ")}.`);
+  if (!(pagos[0].total > 0)) throw new Error("El Excel de Banorte no dio prima para estos datos.");
   return {
     nombre: cfg.nombre,
     pagos,
-    avisos: cfg.mensajes.map((m) => texto(libro.valor(C(m)))).filter((m) => m && !m.startsWith("APLICA")),
-    asegurados: s.asegurados.map((a, i) => ({
-      ...a,
-      parentesco: texto(libro.valor(C(`B${cfg.filas[i]}`))) || (i === 0 ? "Titular" : `Asegurado ${i + 1}`),
-      aviso: texto(libro.valor(C(`F${cfg.filas[i]}`))),
-    })),
+    avisos,
+    asegurados,
   };
 }
