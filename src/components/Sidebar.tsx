@@ -23,7 +23,10 @@ const SECCIONES: {
   },
   {
     titulo: "Cotizadores",
-    links: [{ href: "/cotizar", label: "Autos", roles: TODOS }],
+    links: [
+      { href: "/cotizar", label: "Autos", roles: TODOS },
+      { href: "/cotizar-gmm", label: "Gastos médicos", roles: TODOS },
+    ],
   },
   {
     titulo: "Oficina virtual",
@@ -104,7 +107,7 @@ export default function Sidebar({ sesion, solicitudesPendientes }: Props) {
                 </div>
                 {links.map((l) => {
                   const activo =
-                    l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+                    l.href === "/" ? pathname === "/" : pathname === l.href || pathname.startsWith(`${l.href}/`);
                   return (
                     <Link
                       key={l.href}

@@ -26,9 +26,9 @@ const FORMA_PAGO_LABEL: Record<CotizacionRequest["formaPago"], string> = {
 type DocConTabla = jsPDF & { lastAutoTable?: { finalY: number } };
 
 const LOGO_URL = "/logo-interisk.jpg";
-const LOGO_PROPORCION = 515 / 800;
+export const LOGO_PROPORCION = 515 / 800;
 
-async function cargarLogo(): Promise<string | null> {
+export async function cargarLogo(): Promise<string | null> {
   try {
     const res = await fetch(LOGO_URL);
     if (!res.ok) return null;
