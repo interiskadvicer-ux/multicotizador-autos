@@ -132,12 +132,15 @@ export function camposBanorte(producto: ProductoBanorte): { nombre: string; camp
     nombre: cfg.nombre,
     campos: cfg.campos.map((c) => {
       const v = libro.valor(c.celda);
+      const opciones = lista(libro, c.opciones);
+      const valor = typeof v === "number" ? v : texto(v);
       return {
         clave: c.clave,
         etiqueta: c.etiqueta,
         formato: c.formato,
-        opciones: lista(libro, c.opciones),
-        valor: typeof v === "number" ? v : texto(v),
+        opciones,
+        // Algunas listas del Excel traen espacios al final ("NUEVA ").
+        valor: opciones.find((o) => String(o).trim() === String(valor)) ?? valor,
       };
     }),
   };
@@ -171,7 +174,7 @@ export function cotizarBanorte(s: SolicitudBanorte): ResultadoBanorte {
     if (!(c.clave in s.valores)) continue;
     const v = s.valores[c.clave];
     const permitidas = lista(libro, c.opciones);
-    const elegido = permitidas.find((o) => String(o) === String(v));
+    const elegido = permitidas.find((o) => String(o).trim() === String(v).trim());
     if (elegido === undefined) throw new Error(`${c.etiqueta}: opción no válida.`);
     libro.poner(c.celda, elegido);
   }

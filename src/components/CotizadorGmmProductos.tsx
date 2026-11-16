@@ -3,9 +3,11 @@
 import { useState } from "react";
 import CotizadorGmm from "./CotizadorGmm";
 import CotizadorGmmBanorte from "./CotizadorGmmBanorte";
+import CotizadorGmmComparativo from "./CotizadorGmmComparativo";
 import type { ProductoBanorte } from "@/lib/gmm/banorte/productos";
 
-const PRODUCTOS: { clave: "AURA" | ProductoBanorte; nombre: string }[] = [
+const PRODUCTOS: { clave: "COMPARATIVO" | "AURA" | ProductoBanorte; nombre: string }[] = [
+  { clave: "COMPARATIVO", nombre: "Comparativo" },
   { clave: "AURA", nombre: "Plenit AURA" },
   { clave: "ESENCIAL", nombre: "Banorte Esencial" },
   { clave: "TOTAL", nombre: "Banorte Total" },
@@ -13,7 +15,7 @@ const PRODUCTOS: { clave: "AURA" | ProductoBanorte; nombre: string }[] = [
 ];
 
 export default function CotizadorGmmProductos({ agente }: { agente: string }) {
-  const [producto, setProducto] = useState<(typeof PRODUCTOS)[number]["clave"]>("AURA");
+  const [producto, setProducto] = useState<(typeof PRODUCTOS)[number]["clave"]>("COMPARATIVO");
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -30,7 +32,9 @@ export default function CotizadorGmmProductos({ agente }: { agente: string }) {
           </button>
         ))}
       </div>
-      {producto === "AURA" ? (
+      {producto === "COMPARATIVO" ? (
+        <CotizadorGmmComparativo agente={agente} />
+      ) : producto === "AURA" ? (
         <CotizadorGmm agente={agente} />
       ) : (
         <CotizadorGmmBanorte key={producto} producto={producto} agente={agente} />
