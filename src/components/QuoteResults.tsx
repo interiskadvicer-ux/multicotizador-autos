@@ -407,6 +407,12 @@ function FilaAseguradora({
 
   const esReal = celdas.some((c) => c.resultado?.origen === "real");
   const conAjustes = celdas.some((c) => c.resultado?.ajustes?.length);
+  const sinRespuesta = celdas.every(
+    (c) => !c.resultado || c.resultado.status !== "success" || !c.resultado.prima,
+  )
+    ? celdas.find((c) => c.resultado?.error && !c.resultado.noOfrecido)?.resultado
+        ?.error
+    : undefined;
 
   return (
     <>
@@ -425,6 +431,9 @@ function FilaAseguradora({
             >
               Cobertura ajustada
             </span>
+          )}
+          {sinRespuesta && (
+            <p className="mt-1 max-w-xs text-xs text-rose-600">{sinRespuesta}</p>
           )}
         </td>
         <td className="px-3 py-3">

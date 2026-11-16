@@ -8,6 +8,23 @@ import { ADAPTERS } from "@/insurers/registry";
 
 const TIMEOUT_MS = 15_000;
 
+// Las primas simuladas no se muestran al agente salvo en desarrollo: una prima
+// inventada desvirtúa el comparativo.
+const PERMITIR_SIMULADAS = process.env.PERMITIR_PRIMAS_SIMULADAS === "true";
+
+function sinPrimaSimulada(r: CotizacionResultado): CotizacionResultado {
+  if (PERMITIR_SIMULADAS || r.origen !== "simulado") return r;
+  return {
+    aseguradoraId: r.aseguradoraId,
+    aseguradora: r.aseguradora,
+    status: "error",
+    paquete: r.paquete,
+    moneda: "MXN",
+    coberturas: [],
+    error: `${r.aseguradora} no cotizó: no encontramos este vehículo en su catálogo. Elige la versión en el catálogo de ${r.aseguradora} para cotizar.`,
+  };
+}
+
 function withTimeout(
   adapterId: string,
   aseguradora: string,
@@ -56,12 +73,14 @@ export async function cotizarTodas(
         };
       }
       try {
-        return await withTimeout(
-          adapter.id,
-          adapter.nombre,
-          request.paquete,
-          adapter.cotizar(request),
-          adapter.timeoutMs ?? TIMEOUT_MS,
+        return sinPrimaSimulada(
+          await withTimeout(
+            adapter.id,
+            adapter.nombre,
+            request.paquete,
+            adapter.cotizar(request),
+            adapter.timeoutMs ?? TIMEOUT_MS,
+          ),
         );
       } catch (err) {
         return {
