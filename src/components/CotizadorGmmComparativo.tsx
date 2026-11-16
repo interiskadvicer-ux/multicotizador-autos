@@ -124,7 +124,9 @@ export default function CotizadorGmmComparativo({ agente }: { agente: string }) 
   };
 
   function asegurados() {
-    return filas.map((f) => ({
+    // Banorte asigna el parentesco por renglón: titular, cónyuge y luego dependientes.
+    const orden = (f: Fila) => (PARENTESCOS as readonly string[]).indexOf(f.parentesco);
+    return [...filas].sort((a, b) => orden(a) - orden(b)).map((f) => ({
       nombre: f.nombre.trim(),
       parentesco: f.parentesco,
       sexo: f.sexo as "F" | "M",
@@ -167,6 +169,10 @@ export default function CotizadorGmmComparativo({ agente }: { agente: string }) 
     setError(null);
     if (filas.some((f) => !f.sexo || f.edad === "" || !Number.isInteger(Number(f.edad)))) {
       setError("Captura sexo y edad de cada asegurado.");
+      return;
+    }
+    if (filas.filter((f) => f.parentesco === "Titular").length !== 1 || filas.filter((f) => f.parentesco === "Cónyuge").length > 1) {
+      setError("Debe haber un solo titular y máximo un cónyuge.");
       return;
     }
     setResultados({});
