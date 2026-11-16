@@ -141,7 +141,9 @@ export function primaAura(r: ResultadoGmm): PrimaComparativo {
 }
 
 export function primaBanorte(r: ResultadoBanorte, formaPago: FormaPagoGmm): PrimaComparativo {
-  const p = r.pagos.find((x) => normal(x.forma) === formaPago) ?? r.pagos[0];
+  const p = r.pagos.find((x) => normal(x.forma) === formaPago);
+  // El Excel deja el recibo en 0 cuando no alcanza el recibo mínimo de Banorte.
+  if (!p || !(p.total > 0)) throw new Error(`Banorte no permite pago ${formaPago.toLowerCase()} para esta prima. Elige otra forma de pago.`);
   return { primaTotal: p.total, primerRecibo: p.primerRecibo, subsecuentes: p.subsecuentes };
 }
 
