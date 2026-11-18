@@ -1,6 +1,8 @@
 import type { CotizacionRequest, CotizacionResultado } from "@/domain/types";
 import type { InsurerAdapter } from "./types";
 import { cotizarMock, resolverDescuento, type PricingConfig } from "./base";
+import { cotizacionRealHabilitada } from "@/lib/gnp/config";
+import { cotizarGnpReal } from "@/lib/gnp/cotizacion";
 
 const cfg: PricingConfig = {
   factorBase: 1.02,
@@ -16,21 +18,19 @@ export const gnp: InsurerAdapter = {
   id: "gnp",
   nombre: "GNP Seguros",
   descuentoDefault: 40,
+  paquetes: ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"],
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
-    // TODO(integración): reemplazar por la llamada real al web service de
-    // GNP Seguros (SOAP). Pasos:
-    //   1. Autenticarse con credenciales desde env:
-    //      process.env.GNP_WS_URL / GNP_WS_USER / GNP_WS_PASS
-    //   2. Mapear `request` al formato de entrada del WS (homologar catálogos
-    //      de marca/modelo/versión con los de GNP Seguros).
-    //   3. Llamar al endpoint y mapear la respuesta a `CotizacionResultado`.
-    //   4. Manejar errores/timeouts devolviendo { status: "error", error }.
-    return cotizarMock(
+    const claveGnp = request.vehiculo.claveGnp?.trim();
+    if (cotizacionRealHabilitada() && claveGnp) {
+      return cotizarGnpReal(this.id, this.nombre, request, claveGnp);
+    }
+    const mock = await cotizarMock(
       this.id,
       this.nombre,
       cfg,
       request,
       resolverDescuento(request, this.id, this.descuentoDefault),
     );
+    return { ...mock, origen: "simulado" };
   },
 };

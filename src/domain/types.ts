@@ -56,6 +56,9 @@ export interface Vehiculo {
   // Clave del vehículo en el catálogo de General de Seguros (claveGs, p. ej.
   // 10598). Requerida para la cotización real de General de Seguros.
   claveGs?: string;
+  // Clave del vehículo en el catálogo de GNP (`tipo|armadora|carrocería|versión`,
+  // p. ej. AUT|NI|24|16). Requerida para la cotización real de GNP.
+  claveGnp?: string;
 }
 
 export interface Conductor {

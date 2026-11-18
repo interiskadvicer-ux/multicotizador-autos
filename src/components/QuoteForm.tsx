@@ -10,6 +10,8 @@ import type { VehiculoZurich } from "@/lib/zurich/catalogos";
 import type { VehiculoHdi } from "@/lib/hdi/catalogos";
 import type { VehiculoElPotosi } from "@/lib/elpotosi/catalogos";
 import type { VehiculoGs } from "@/lib/gs/catalogos";
+import type { VehiculoGnp } from "@/lib/gnp/catalogos";
+import { ASEGURADORAS } from "@/insurers/registry";
 
 type AseguradoraCatalogo =
   | "qualitas"
@@ -18,7 +20,8 @@ type AseguradoraCatalogo =
   | "zurich"
   | "hdi"
   | "elpotosi"
-  | "generalseguros";
+  | "generalseguros"
+  | "gnp";
 
 interface Props {
   onCotizar: (request: CotizacionRequest) => void;
@@ -41,7 +44,8 @@ const ASEGURADORAS_CATALOGO: AseguradoraCatalogo[] = [
   "hdi",
   "elpotosi",
   "generalseguros",
-];
+  "gnp",
+].filter((id) => ASEGURADORAS.some((a) => a.id === id)) as AseguradoraCatalogo[];
 
 function tokens(texto: string): Set<string> {
   const lista = texto
@@ -122,6 +126,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
   const [claveHdi, setClaveHdi] = useState("");
   const [claveElPotosi, setClaveElPotosi] = useState("");
   const [claveGs, setClaveGs] = useState("");
+  const [claveGnp, setClaveGnp] = useState("");
 
   const [catBuscando, setCatBuscando] = useState<Record<string, boolean>>({});
   const [catAbierto, setCatAbierto] = useState<Record<string, boolean>>({});
@@ -343,6 +348,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     else if (aseguradora === "zurich") setClaveZurich(clave);
     else if (aseguradora === "hdi") setClaveHdi(clave);
     else if (aseguradora === "elpotosi") setClaveElPotosi(clave);
+    else if (aseguradora === "gnp") setClaveGnp(clave);
     else setClaveGs(clave);
     setCatElegido((el) => ({ ...el, [aseguradora]: v }));
   }
@@ -373,6 +379,25 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
     );
   }
 
+  function buscarGnp() {
+    const params = new URLSearchParams({
+      marca,
+      submarca: modelo,
+      anio: String(anio),
+    });
+    return buscarCatalogo(
+      "gnp",
+      "GNP",
+      `/api/gnp/vehiculos?${params.toString()}`,
+      (data) =>
+        ((data.vehiculos ?? []) as VehiculoGnp[]).map((v) => ({
+          clave: v.claveGnp,
+          etiqueta: `${v.descripcion} (${v.anio})`,
+          version: v.descripcion,
+        })),
+    );
+  }
+
   function elegirVehiculo(aseguradora: AseguradoraCatalogo, v: OpcionVehiculo) {
     asignarClave(aseguradora, v);
     if (v.version) setVersion(v.version);
@@ -390,6 +415,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
       hdi: buscarHdi,
       elpotosi: buscarElPotosi,
       generalseguros: buscarGs,
+      gnp: buscarGnp,
     };
     return Promise.all(ASEGURADORAS_CATALOGO.map((id) => buscadores[id]()));
   }
@@ -413,6 +439,7 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
         claveHdi: claveHdi.trim() || undefined,
         claveElPotosi: claveElPotosi.trim() || undefined,
         claveGs: claveGs.trim() || undefined,
+        claveGnp: claveGnp.trim() || undefined,
       },
       conductor: {
         nombre,
@@ -673,8 +700,17 @@ export default function QuoteForm({ onCotizar, cargando }: Props) {
                   placeholder: "Ej. 10598",
                   buscar: buscarGs,
                 },
+                {
+                  id: "gnp" as const,
+                  etiqueta: "GNP (clave GNP)",
+                  valor: claveGnp,
+                  onChange: (v: string) =>
+                    setClaveGnp(v.toUpperCase().replace(/[^A-Z0-9|]/g, "").slice(0, 20)),
+                  placeholder: "Ej. AUT|NI|38|27",
+                  buscar: buscarGnp,
+                },
               ] as const
-            ).map((c) => (
+            ).filter((c) => ASEGURADORAS_CATALOGO.includes(c.id)).map((c) => (
               <div key={c.id}>
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-xs font-medium text-amber-900">
