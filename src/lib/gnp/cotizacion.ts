@@ -18,6 +18,36 @@ const NOMBRE_PAQUETE: Record<Paquete, string> = {
   LIMITADA: "Limitada",
   RC: "Responsabilidad Civil",
 };
+// Claves de cobertura del kit ("COBERTURAS JUEGA Y COMPARA"); las opciones del
+// comparativo están dentro de los valores que GNP admite.
+function coberturasXml(request: CotizacionRequest, paquete: Paquete): string {
+  const c = request.coberturasPersonalizadas;
+  if (!c) return "<COBERTURAS/>";
+  const conDanos = paquete === "AMPLIA" || paquete === "AMPLIA_PLUS";
+  const lista: Array<[string, number | undefined, number | undefined]> = [
+    ["0000001273", c.responsabilidadCivil, undefined],
+    ["0000000906", c.gastosMedicos, undefined],
+    ...(conDanos
+      ? ([
+          ["0000001289", undefined, c.deducibleDanosMateriales],
+          ["0000001288", undefined, c.deducibleDanosMateriales],
+        ] as Array<[string, undefined, number | undefined]>)
+      : []),
+    ...(paquete !== "RC" ? ([["0000000916", undefined, c.deducibleRoboTotal]] as Array<[string, undefined, number | undefined]>) : []),
+  ];
+  const items = lista
+    .filter(([, suma, ded]) => suma !== undefined || ded !== undefined)
+    .map(
+      ([cve, suma, ded]) =>
+        `<COBERTURA><CVE_COBERTURA>${cve}</CVE_COBERTURA>` +
+        (suma !== undefined ? `<SUMA_ASEGURADA>${suma}</SUMA_ASEGURADA>` : "") +
+        (ded !== undefined ? `<DEDUCIBLE>${ded}</DEDUCIBLE>` : "") +
+        `</COBERTURA>`,
+    )
+    .join("");
+  return items ? `<COBERTURAS>${items}</COBERTURAS>` : "<COBERTURAS/>";
+}
+
 const PERIODICIDAD: Record<FormaPago, string> = { CONTADO: "A", SEMESTRAL: "S", TRIMESTRAL: "T", MENSUAL: "M" };
 
 interface PaqueteGnp {
@@ -52,7 +82,7 @@ function solicitudXml(request: CotizacionRequest, clave: NonNullable<ReturnType<
   const paquetes = (Object.keys(PAQUETES_GNP[clave.tipo]) as Paquete[])
     .map(
       (p) =>
-        `<PAQUETE><CVE_PAQUETE>${PAQUETES_GNP[clave.tipo][p]}</CVE_PAQUETE><DESC_PAQUETE>${NOMBRE_PAQUETE[p]}</DESC_PAQUETE><COBERTURAS/></PAQUETE>`,
+        `<PAQUETE><CVE_PAQUETE>${PAQUETES_GNP[clave.tipo][p]}</CVE_PAQUETE><DESC_PAQUETE>${NOMBRE_PAQUETE[p]}</DESC_PAQUETE>${coberturasXml(request, p)}</PAQUETE>`,
     )
     .join("");
   return (
@@ -101,7 +131,7 @@ const compartidas = new Map<string, { expira: number; valor: Promise<CotizacionG
 function cotizacionCompartida(request: CotizacionRequest, claveGnp: string): Promise<CotizacionGnp> {
   const ahora = Date.now();
   compartidas.forEach((v, k) => v.expira <= ahora && compartidas.delete(k));
-  const llave = JSON.stringify([claveGnp, request.vehiculo, request.conductor, request.formaPago]);
+  const llave = JSON.stringify([claveGnp, request.vehiculo, request.conductor, request.formaPago, request.coberturasPersonalizadas]);
   const hit = compartidas.get(llave);
   if (hit) return hit.valor;
   const clave = parsearClaveGnp(claveGnp);
@@ -121,6 +151,7 @@ export async function cotizarGnpReal(
   aseguradora: string,
   request: CotizacionRequest,
   claveGnp: string,
+  descuento = 0,
 ): Promise<CotizacionResultado> {
   const inicioTiempo = Date.now();
   const base: Omit<CotizacionResultado, "status"> = {
@@ -167,6 +198,7 @@ export async function cotizarGnpReal(
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",
       noCotizacion: cotizacion.numero || undefined,
+      ajustes: descuento > 0 ? [`Descuento: todavía no se aplica en GNP; la prima es sin el ${descuento}%.`] : undefined,
     };
   } catch (err) {
     return {

@@ -22,7 +22,13 @@ export const gnp: InsurerAdapter = {
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const claveGnp = request.vehiculo.claveGnp?.trim();
     if (cotizacionRealHabilitada() && claveGnp) {
-      return cotizarGnpReal(this.id, this.nombre, request, claveGnp);
+      return cotizarGnpReal(
+        this.id,
+        this.nombre,
+        request,
+        claveGnp,
+        resolverDescuento(request, this.id, this.descuentoDefault),
+      );
     }
     const mock = await cotizarMock(
       this.id,
