@@ -8,8 +8,8 @@ export interface DatosCfdi {
 function atributo(xml: string, etiqueta: RegExp, nombre: string): string | null {
   const nodo = xml.match(etiqueta)?.[0];
   if (!nodo) return null;
-  const m = nodo.match(new RegExp(`\\b${nombre}\\s*=\\s*"([^"]*)"`));
-  return m ? m[1].trim() : null;
+  const m = nodo.match(new RegExp(`\\b${nombre}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`));
+  return m ? (m[1] ?? m[2]).trim() : null;
 }
 
 // Lectura básica del CFDI 3.3/4.0: no valida sello ni estatus ante el SAT.
