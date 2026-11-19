@@ -17,7 +17,8 @@ const cfg: PricingConfig = {
 export const gnp: InsurerAdapter = {
   id: "gnp",
   nombre: "GNP Seguros",
-  descuentoDefault: 40,
+  // El descuento sale de ceder comisión (máximo 10% en autos y 8% en pick ups).
+  descuentoDefault: 0,
   paquetes: ["AMPLIA_PLUS", "AMPLIA", "LIMITADA", "RC"],
   async cotizar(request: CotizacionRequest): Promise<CotizacionResultado> {
     const claveGnp = request.vehiculo.claveGnp?.trim();

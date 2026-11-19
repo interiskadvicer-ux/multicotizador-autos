@@ -25,7 +25,10 @@ function coberturasXml(request: CotizacionRequest, paquete: Paquete): string {
   if (!c) return "<COBERTURAS/>";
   const conDanos = paquete === "AMPLIA" || paquete === "AMPLIA_PLUS";
   const lista: Array<[string, number | undefined, number | undefined]> = [
+    // GNP exige que protección legal y extensión de RC igualen la RC.
     ["0000001273", c.responsabilidadCivil, undefined],
+    ["0000001285", c.responsabilidadCivil, undefined],
+    ["0000000904", c.responsabilidadCivil, undefined],
     ["0000000906", c.gastosMedicos, undefined],
     ...(conDanos
       ? ([
@@ -46,6 +49,17 @@ function coberturasXml(request: CotizacionRequest, paquete: Paquete): string {
     )
     .join("");
   return items ? `<COBERTURAS>${items}</COBERTURAS>` : "<COBERTURAS/>";
+}
+
+// Comisión que GNP pide informar: 10 en autos, 8 en pick ups. El descuento se
+// da cediendo parte de esa comisión (PORCENTAJE_CESION_COMISION, en % de la
+// comisión), así que el máximo es la comisión completa.
+const COMISION: Record<TipoVehiculoGnp, number> = { AUT: 10, CA1: 8 };
+
+export function cesionPara(tipo: TipoVehiculoGnp, descuento: number): { cesion: number; aplicado: number } {
+  const comision = COMISION[tipo];
+  const aplicado = Math.min(Math.max(descuento, 0), comision);
+  return { cesion: round2((aplicado / comision) * 100), aplicado };
 }
 
 const PERIODICIDAD: Record<FormaPago, string> = { CONTADO: "A", SEMESTRAL: "S", TRIMESTRAL: "T", MENSUAL: "M" };
@@ -72,7 +86,14 @@ function edad(fechaNacimiento: string): number {
   return Math.floor((Date.now() - n.getTime()) / (365.25 * 24 * 3600 * 1000));
 }
 
-function solicitudXml(request: CotizacionRequest, clave: NonNullable<ReturnType<typeof parsearClaveGnp>>): string {
+const elemento = (nombre: string, v: string | number) =>
+  `<ELEMENTO><NOMBRE>${nombre}</NOMBRE><CLAVE>${v}</CLAVE><VALOR>${v}</VALOR></ELEMENTO>`;
+
+function solicitudXml(
+  request: CotizacionRequest,
+  clave: NonNullable<ReturnType<typeof parsearClaveGnp>>,
+  descuento: number,
+): string {
   const cfg = getGnpConfig();
   const inicio = new Date();
   const fin = new Date(inicio);
@@ -90,7 +111,8 @@ function solicitudXml(request: CotizacionRequest, clave: NonNullable<ReturnType<
     `<ID_UNIDAD_OPERABLE>${cfg.unidadOperable}</ID_UNIDAD_OPERABLE>` +
     `<FCH_INICIO_VIGENCIA>${fecha(inicio)}</FCH_INICIO_VIGENCIA><FCH_FIN_VIGENCIA>${fecha(fin)}</FCH_FIN_VIGENCIA>` +
     `<VIA_PAGO>IN</VIA_PAGO><PERIODICIDAD>${PERIODICIDAD[request.formaPago]}</PERIODICIDAD>` +
-    `<ELEMENTOS><ELEMENTO><NOMBRE>INTERMEDIARIO</NOMBRE><CLAVE>${cfg.intermediario}</CLAVE><VALOR>${cfg.intermediario}</VALOR></ELEMENTO></ELEMENTOS>` +
+    `<ELEMENTOS>${elemento("INTERMEDIARIO", cfg.intermediario)}${elemento("PORCENTAJE_COMISION", COMISION[clave.tipo])}` +
+    `${elemento("PORCENTAJE_CESION_COMISION", cesionPara(clave.tipo, descuento).cesion)}</ELEMENTOS>` +
     `</SOLICITUD><VEHICULO><SUB_RAMO>01</SUB_RAMO><TIPO_VEHICULO>${clave.tipo}</TIPO_VEHICULO>` +
     `<MODELO>${request.vehiculo.anio}</MODELO><ARMADORA>${escapeXml(clave.armadora)}</ARMADORA>` +
     `<CARROCERIA>${escapeXml(clave.carroceria)}</CARROCERIA><VERSION>${escapeXml(clave.version)}</VERSION>` +
@@ -107,16 +129,7 @@ function parsear(xml: string): CotizacionGnp {
     numero: valor(xml, "NUM_COTIZACION") || valor(xml, "NUM_CONTIZACION"),
     paquetes: bloques(xml, "PAQUETE").map((p) => ({
       clave: valor(p, "CVE_PAQUETE"),
-      coberturas: bloques(p, "COBERTURA").map((c) => {
-        const suma = valor(c, "SUMA_ASEGURADA");
-        const ded = valor(c, "DEDUCIBLE");
-        return {
-          nombre: valor(c, "NOMBRE"),
-          incluida: true,
-          sumaAsegurada: suma && num(suma) > 0 ? `$${num(suma).toLocaleString("es-MX")}` : "Amparada",
-          deducible: ded && num(ded) > 0 ? `${num(ded)}%` : undefined,
-        };
-      }),
+      coberturas: homologar(bloques(p, "COBERTURA")),
       conceptos: bloques(p, "CONCEPTO_ECONOMICO").map((c) => ({ nombre: valor(c, "NOMBRE"), monto: num(valor(c, "MONTO")) })),
       parcialidades: bloques(p, "RESULTADO_MONTO_PARCIALIDAD").map((r) => ({
         num: num(valor(r, "NUM_PARCIALIDADES")),
@@ -126,17 +139,43 @@ function parsear(xml: string): CotizacionGnp {
   };
 }
 
+const COBERTURA_HOMOLOGADA: Array<[RegExp, string]> = [
+  [/DA[ÑN]OS MATERIALES P[EÉ]RDIDA PARCIAL/i, "Daños Materiales"],
+  [/ROBO TOTAL/i, "Robo Total"],
+  [/RESPONSABILIDAD CIVIL (POR )?DA[ÑN]OS A TERCEROS/i, "Responsabilidad Civil"],
+  [/GASTOS M[EÉ]DICOS/i, "Gastos Médicos Ocupantes"],
+  [/PROTECCI[OÓ]N LEGAL/i, "Defensa Jurídica"],
+];
+
+function texto(t: string): string | undefined {
+  const v = t.replace(/\s+/g, " ").replace(/(\d) %/g, "$1%").trim();
+  return v && !/^no aplica$/i.test(v) ? v.replace(/^VALOR COMERCIAL$/i, "Valor comercial").replace(/^AMPARADA$/i, "Amparada") : undefined;
+}
+
+function homologar(lista: string[]): Cobertura[] {
+  const principales = new Map<string, Cobertura>();
+  const otras: Cobertura[] = [];
+  for (const c of lista) {
+    const nombre = valor(c, "NOMBRE").replace(/\s+/g, " ").trim();
+    const cob = { nombre, incluida: true, sumaAsegurada: texto(valor(c, "SUMA_ASEGURADA")), deducible: texto(valor(c, "DEDUCIBLE")) };
+    const hom = COBERTURA_HOMOLOGADA.find(([re]) => re.test(nombre));
+    if (hom && !principales.has(hom[1])) principales.set(hom[1], { ...cob, nombre: hom[1] });
+    else if (nombre) otras.push({ ...cob, nombre: nombre.charAt(0) + nombre.slice(1).toLowerCase() });
+  }
+  return [...COBERTURA_HOMOLOGADA.map(([, n]) => principales.get(n)).filter((c): c is Cobertura => !!c), ...otras];
+}
+
 const compartidas = new Map<string, { expira: number; valor: Promise<CotizacionGnp> }>();
 
-function cotizacionCompartida(request: CotizacionRequest, claveGnp: string): Promise<CotizacionGnp> {
+function cotizacionCompartida(request: CotizacionRequest, claveGnp: string, descuento: number): Promise<CotizacionGnp> {
   const ahora = Date.now();
   compartidas.forEach((v, k) => v.expira <= ahora && compartidas.delete(k));
-  const llave = JSON.stringify([claveGnp, request.vehiculo, request.conductor, request.formaPago, request.coberturasPersonalizadas]);
+  const llave = JSON.stringify([claveGnp, request.vehiculo, request.conductor, request.formaPago, request.coberturasPersonalizadas, descuento]);
   const hit = compartidas.get(llave);
   if (hit) return hit.valor;
   const clave = parsearClaveGnp(claveGnp);
   if (!clave) return Promise.reject(new GnpError(`Clave GNP no válida: ${claveGnp}.`));
-  const promesa = postGnp("/cotizador/cotizar", solicitudXml(request, clave)).then(parsear);
+  const promesa = postGnp("/cotizador/cotizar", solicitudXml(request, clave, descuento)).then(parsear);
   compartidas.set(llave, { expira: ahora + 60_000, valor: promesa });
   promesa.catch(() => compartidas.delete(llave));
   return promesa;
@@ -169,21 +208,30 @@ export async function cotizarGnpReal(
   }
   try {
     const clave = parsearClaveGnp(claveGnp);
-    const cotizacion = await cotizacionCompartida(request, claveGnp);
-    const buscada = clave && PAQUETES_GNP[clave.tipo][request.paquete];
+    if (!clave) throw new GnpError(`Clave GNP no válida: ${claveGnp}.`);
+    const { aplicado } = cesionPara(clave.tipo, descuento);
+    const [cotizacion, lista] = await Promise.all([
+      cotizacionCompartida(request, claveGnp, aplicado),
+      aplicado > 0 ? cotizacionCompartida(request, claveGnp, 0) : undefined,
+    ]);
+    const buscada = PAQUETES_GNP[clave.tipo][request.paquete];
     const paquete = cotizacion.paquetes.find((p) => p.clave === buscada);
+    const paqueteLista = lista?.paquetes.find((p) => p.clave === buscada) ?? paquete;
     if (!paquete) return { ...base, status: "error", noOfrecido: true, error: "GNP no devolvió este paquete." };
-    const primaTotal = concepto(paquete, /PRIMA.?TOTAL|^TOTAL/i);
+    const primaTotal = concepto(paquete, /^TOTAL_PAGAR$/);
     if (!(primaTotal > 0)) throw new GnpError("GNP no devolvió la prima total.");
-    const primaNeta = concepto(paquete, /PRIMA.?NETA/i);
+    // La cesión de comisión llega como PRIMA_CEDIDA (negativa) aparte de la
+    // prima neta; el IVA y el total ya la descuentan.
+    const primaNeta = concepto(paquete, /^PRIMA_NETA$/) + concepto(paquete, /^PRIMA_CEDIDA$/);
+    const primaLista = paqueteLista ? concepto(paqueteLista, /^PRIMA_NETA$/) : primaNeta;
     const prima: DesglosePrima = {
-      primaNetaSinDescuento: round2(primaNeta),
-      descuentoPorcentaje: 0,
-      descuentoMonto: 0,
+      primaNetaSinDescuento: round2(primaLista),
+      descuentoPorcentaje: aplicado,
+      descuentoMonto: round2(primaLista - primaNeta),
       primaNeta: round2(primaNeta),
-      derechos: round2(concepto(paquete, /DERECHO/i)),
-      recargoPagoFraccionado: round2(concepto(paquete, /RECARGO/i)),
-      iva: round2(concepto(paquete, /IVA/i)),
+      derechos: round2(concepto(paquete, /^DERECHOS_POLIZA$/)),
+      recargoPagoFraccionado: round2(concepto(paquete, /^RECARGO_FRACCIONAMIENTO$/)),
+      iva: round2(concepto(paquete, /^IVA$/)),
       primaTotal: round2(primaTotal),
     };
     const inicio = new Date();
@@ -198,7 +246,10 @@ export async function cotizarGnpReal(
       tiempoRespuestaMs: Date.now() - inicioTiempo,
       origen: "real",
       noCotizacion: cotizacion.numero || undefined,
-      ajustes: descuento > 0 ? [`Descuento: todavía no se aplica en GNP; la prima es sin el ${descuento}%.`] : undefined,
+      ajustes:
+        descuento > aplicado
+          ? [`Descuento: GNP solo permite ceder la comisión de ${COMISION[clave.tipo]}%; se aplicó ${aplicado}%.`]
+          : undefined,
     };
   } catch (err) {
     return {
