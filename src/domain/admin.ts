@@ -1,0 +1,103 @@
+// Tipos de dominio para autenticación, pólizas y auditoría.
+
+export type Rol = "ADMIN" | "POLIZAS" | "COTIZADOR" | "AGENTE";
+
+export const ROLES: { value: Rol; label: string; descripcion: string }[] = [
+  {
+    value: "ADMIN",
+    label: "Administrador",
+    descripcion: "Acceso total: cotizador, pólizas, usuarios y reportes.",
+  },
+  {
+    value: "POLIZAS",
+    label: "Gestor de pólizas",
+    descripcion: "Administra el catálogo de pólizas y sus vencimientos.",
+  },
+  {
+    value: "COTIZADOR",
+    label: "Cotizador",
+    descripcion: "Solo puede generar cotizaciones.",
+  },
+  {
+    value: "AGENTE",
+    label: "Agente",
+    descripcion:
+      "Agente externo autorizado: cotiza y ve solo sus cotizaciones y pólizas.",
+  },
+];
+
+export interface Usuario {
+  id: number;
+  email: string;
+  nombre: string;
+  rol: Rol;
+  activo: boolean;
+  createdAt: string;
+}
+
+// Usuario en sesión (lo que viaja en el token, sin datos sensibles).
+export interface SesionUsuario {
+  id: number;
+  email: string;
+  nombre: string;
+  rol: Rol;
+}
+
+export type FormaPagoPoliza = "ANUAL" | "SEMESTRAL" | "TRIMESTRAL" | "MENSUAL";
+
+export const RECIBOS_POR_FORMA: Record<FormaPagoPoliza, number> = {
+  ANUAL: 1,
+  SEMESTRAL: 2,
+  TRIMESTRAL: 4,
+  MENSUAL: 12,
+};
+
+export interface Poliza {
+  id: number;
+  numeroPoliza: string;
+  ramo: string;
+  aseguradora: string;
+  asegurado: string;
+  primaNeta: number;
+  primaTotal: number;
+  vigenciaInicio: string; // ISO yyyy-mm-dd
+  vigenciaFin: string; // ISO yyyy-mm-dd
+  notas?: string;
+  // Define cuántos recibos se esperan en la vigencia (anual = 1).
+  formaPago?: FormaPagoPoliza;
+  // Archivo PDF de la carátula, guardado en uploads/polizas.
+  caratula?: string | null;
+  // Agente al que pertenece la póliza (sus reportes solo muestran las suyas).
+  agenteId?: number | null;
+  // Suma de pagos registrados (manuales o por estado de cuenta).
+  pagado?: number;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PolizaInput = Omit<
+  Poliza,
+  "id" | "createdBy" | "createdAt" | "updatedAt" | "pagado"
+>;
+
+// Ramos comunes del mercado mexicano (el usuario puede escribir uno libre).
+export const RAMOS = [
+  "Autos",
+  "Vida",
+  "Gastos Médicos Mayores",
+  "Daños / Hogar",
+  "Responsabilidad Civil",
+  "Transporte",
+  "Fianzas",
+  "Otro",
+];
+
+export interface RegistroActividad {
+  id: number;
+  usuarioId: number | null;
+  usuarioEmail: string;
+  accion: string;
+  detalle: string;
+  createdAt: string;
+}
