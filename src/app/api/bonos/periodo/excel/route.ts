@@ -20,7 +20,8 @@ export async function GET(req: Request) {
     nombre = `bonos-agentes-${p.anio}-bim${p.periodo}.xlsx`;
   } else {
     const config = obtenerConfig();
-    data = await excelPromotor(etiquetaMes(p.anio, p.periodo), config.promotorNombre, calcularMesPromotor(p.anio, p.periodo).resultado);
+    data = await excelPromotor(etiquetaMes(p.anio, p.periodo), config.promotorNombre, calcularMesPromotor(p.anio, p.periodo).resultado,
+      listarReportes("PROMOTOR", p.anio, p.periodo)[0]);
     nombre = `bono-promotor-${p.anio}-${String(p.periodo).padStart(2, "0")}.xlsx`;
   }
   return new Response(data, {

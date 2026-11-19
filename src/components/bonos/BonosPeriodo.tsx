@@ -196,13 +196,21 @@ interface AccionesProps {
   revertir: (r: ReporteBono) => void;
 }
 
-function EstadoReporte({ r, pagar, revertir }: { r?: ReporteBono } & Pick<AccionesProps, "pagar" | "revertir">) {
+function EstadoReporte({
+  r, calculado, pagar, revertir,
+}: { r?: ReporteBono; calculado: number } & Pick<AccionesProps, "pagar" | "revertir">) {
   if (!r) return <span className="text-xs text-slate-400">Sin reporte</span>;
   const e = ETIQUETA_ESTADO[r.estado];
+  const cambio = Math.abs(r.total - calculado) > 0.005;
   const difiere = r.facturaTotal !== null && Math.abs(r.facturaTotal - r.total) > 0.5;
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <span className={`rounded-full px-2 py-0.5 font-medium ${e.clase}`}>{e.texto}</span>
+      {cambio && (
+        <span className="font-semibold text-amber-700" title="Importe guardado en el reporte; difiere del cálculo actual">
+          Reporte {formatMXN(r.total)}
+        </span>
+      )}
       {r.facturaPdf && (
         <>
           <a href={`/api/bonos/reportes/${r.id}?archivo=pdf`} target="_blank" className="text-sky-700 hover:underline">PDF</a>
@@ -271,7 +279,7 @@ function TablaAgentes({
                   <td className="text-right font-semibold tabular-nums">{formatMXN(r.total)}</td>
                   <td className="pl-4">
                     <div className="text-xs text-slate-500">{rep?.email ?? (rep ? "sin correo" : "")}</div>
-                    {r.total > 0 && <EstadoReporte r={rep} pagar={pagar} revertir={revertir} />}
+                    {(rep || r.total > 0) && <EstadoReporte r={rep} calculado={r.total} pagar={pagar} revertir={revertir} />}
                   </td>
                 </tr>
               );
@@ -343,7 +351,7 @@ function TablaPromotor({
                 {reporte.nombre}
               </label>
               <div className="text-xs text-slate-500">{reporte.email ?? "Sin correo (configúralo en Catálogo)"}</div>
-              <EstadoReporte r={reporte} pagar={pagar} revertir={revertir} />
+              <EstadoReporte r={reporte} calculado={r.total} pagar={pagar} revertir={revertir} />
             </div>
           ) : (
             <p className="mt-2 text-sm text-slate-500">Genera el reporte para enviarlo y controlar su factura.</p>

@@ -14,7 +14,8 @@ function atributo(xml: string, etiqueta: RegExp, nombre: string): string | null 
 
 // Lectura básica del CFDI 3.3/4.0: no valida sello ni estatus ante el SAT.
 export function leerCfdi(xml: string): DatosCfdi | null {
-  if (!/<cfdi:Comprobante\b/.test(xml)) return null;
+  const inicio = xml.replace(/^\uFEFF/, "").replace(/^\s*<\?xml[^>]*\?>/, "").replace(/^(\s*<!--[\s\S]*?-->)*\s*/, "");
+  if (!inicio.startsWith("<cfdi:Comprobante")) return null;
   const total = atributo(xml, /<cfdi:Comprobante\b[^>]*>/, "Total");
   return {
     uuid: atributo(xml, /<tfd:TimbreFiscalDigital\b[^>]*>/, "UUID")?.toUpperCase() ?? null,

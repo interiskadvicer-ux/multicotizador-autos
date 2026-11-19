@@ -140,11 +140,16 @@ function bonosAgentes(
     const base = acumulado.get(a.id)?.autosDanos ?? 0;
     res.set(a.id, { base, bono: base * a.porcentaje, recibe: [], cede: [] });
   }
+  // Un agente no puede ceder más de su propio %: si los repartos lo exceden se reducen en proporción.
+  const cedido = new Map<number, number>();
+  for (const r of repartos) cedido.set(r.origenId, (cedido.get(r.origenId) ?? 0) + r.porcentaje);
   for (const r of repartos) {
     const origen = res.get(r.origenId);
     const destino = res.get(r.destinoId);
     if (!origen || !destino) continue;
-    const importe = origen.base * r.porcentaje;
+    const total = cedido.get(r.origenId)!;
+    const tope = porId.get(r.origenId)!.porcentaje;
+    const importe = origen.base * (total > tope ? (r.porcentaje * tope) / total : r.porcentaje);
     origen.bono -= importe;
     destino.bono += importe;
     origen.cede.push({ agenteId: r.destinoId, nombre: porId.get(r.destinoId)!.nombre, porcentaje: r.porcentaje, importe: redondear(importe) });

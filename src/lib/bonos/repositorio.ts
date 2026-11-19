@@ -78,7 +78,9 @@ function asegurarSemilla(): void {
 
 export function obtenerConfig(): ConfigBonos {
   const filas = db.prepare("SELECT clave, valor FROM bono_config").all() as { clave: string; valor: string }[];
-  const guardada = Object.fromEntries(filas.map((f) => [f.clave, JSON.parse(f.valor)]));
+  const guardada = Object.fromEntries(
+    filas.filter((f) => f.clave in CONFIG_INICIAL).map((f) => [f.clave, JSON.parse(f.valor)]),
+  );
   return { ...CONFIG_INICIAL, ...guardada };
 }
 
@@ -154,6 +156,9 @@ export function actualizarAgente(
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Correo inválido.");
   const porcentaje = datos.porcentaje ?? actual.porcentaje;
   if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 1) throw new Error("Porcentaje inválido.");
+  const cede = porcentajeCedido(id);
+  if (porcentaje + 1e-9 < cede)
+    throw new Error(`El agente cede ${(cede * 100).toFixed(2)}% en repartos; ajusta los repartos antes de bajar su %.`);
   db.prepare("UPDATE bono_agentes SET subpromo = ?, porcentaje = ?, email = ?, activo = ? WHERE id = ?").run(
     normalizarNombre(datos.subpromo ?? actual.subpromo) || "SIN ASIGNAR",
     porcentaje,
@@ -274,9 +279,20 @@ export function listarRepartos(): Reparto[] {
     .all() as Reparto[];
 }
 
+function porcentajeCedido(origenId: number, excluirDestino?: number): number {
+  const fila = db
+    .prepare("SELECT COALESCE(SUM(porcentaje), 0) AS n FROM bono_repartos WHERE origen_id = ? AND destino_id IS NOT ?")
+    .get(origenId, excluirDestino ?? null) as { n: number };
+  return fila.n;
+}
+
 export function guardarReparto(origenId: number, destinoId: number, porcentaje: number): void {
   if (origenId === destinoId) throw new Error("El agente que cede y el que recibe deben ser distintos.");
   if (!Number.isFinite(porcentaje) || porcentaje <= 0 || porcentaje > 1) throw new Error("Porcentaje inválido.");
+  const origen = db.prepare("SELECT porcentaje FROM bono_agentes WHERE id = ?").get(origenId) as { porcentaje: number } | undefined;
+  if (!origen) throw new Error("Agente no encontrado.");
+  if (porcentajeCedido(origenId, destinoId) + porcentaje > origen.porcentaje + 1e-9)
+    throw new Error(`Los repartos no pueden superar el ${(origen.porcentaje * 100).toFixed(2)}% del agente que cede.`);
   db.prepare(
     `INSERT INTO bono_repartos (origen_id, destino_id, porcentaje) VALUES (?, ?, ?)
      ON CONFLICT(origen_id, destino_id) DO UPDATE SET porcentaje = excluded.porcentaje`,
@@ -288,12 +304,16 @@ export function eliminarReparto(id: number): void {
 }
 
 // Regla inicial acordada: Pablo recibe 1% de la prima de Eloísa.
+// Se siembra una sola vez; si el administrador la borra, no vuelve.
 export function sembrarRepartoInicial(): void {
-  const hay = db.prepare("SELECT COUNT(*) AS n FROM bono_repartos").get() as { n: number };
-  if (hay.n > 0) return;
+  const hecho = db.prepare("SELECT 1 FROM bono_config WHERE clave = '_repartoInicial'").get();
+  if (hecho) return;
   const origen = agentePorNombre("ELOISA EDITH ZAPATA PENA");
   const destino = agentePorNombre("PABLO STEINMAN SOSA");
-  if (origen && destino) guardarReparto(origen, destino, 0.01);
+  if (!origen || !destino) return;
+  const hay = db.prepare("SELECT COUNT(*) AS n FROM bono_repartos").get() as { n: number };
+  if (hay.n === 0) guardarReparto(origen, destino, 0.01);
+  db.prepare("INSERT OR IGNORE INTO bono_config (clave, valor) VALUES ('_repartoInicial', 'true')").run();
 }
 
 export interface Ramo {

@@ -128,7 +128,7 @@ function leerCatalogo(wb: ExcelJS.Workbook): AgenteCatalogo[] {
   for (const f of filas.slice(h + 1)) {
     const nombre = normalizarNombre(f[1]);
     const porcentaje = numero(f[3]);
-    if (!nombre || porcentaje <= 0) continue;
+    if (!nombre || !normalizarNombre(f[2])) continue;
     res.push({ clave: String(f[0] ?? ""), nombre, subpromo: normalizarNombre(f[2]), porcentaje });
   }
   return res;

@@ -20,8 +20,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!fs.existsSync(ruta)) return NextResponse.json({ error: "Archivo no encontrado." }, { status: 404 });
   return new Response(fs.readFileSync(ruta), {
     headers: {
-      "Content-Type": tipo === "xml" ? "application/xml" : "application/pdf",
-      "Content-Disposition": `inline; filename="factura-${r.anio}-${r.periodo}-${r.id}.${tipo}"`,
+      "Content-Type": tipo === "xml" ? "application/octet-stream" : "application/pdf",
+      "Content-Disposition": `${tipo === "xml" ? "attachment" : "inline"}; filename="factura-${r.anio}-${r.periodo}-${r.id}.${tipo}"`,
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

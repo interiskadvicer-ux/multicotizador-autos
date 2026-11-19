@@ -24,7 +24,7 @@ export async function excelAgentes(titulo: string, filas: ResultadoAgente[], rep
   ws.addRow([`CIFRAS ${titulo.toUpperCase()}`]).font = { bold: true, size: 13 };
   ws.addRow([
     "AGENTE", "PRIMA COMPUTABLE COBRADA DAÑOS AUTOS", "% AGENTE", "REPARTO", "BONO AGENTE", "IVA",
-    "RET ISR", "RET IVA", "TOTAL FACTURA", "ESTADO", "UUID", "FECHA PAGO",
+    "RET ISR", "RET IVA", "TOTAL FACTURA", "TOTAL REPORTE", "ESTADO", "UUID", "FECHA PAGO",
   ]);
   encabezado(ws, 2);
   const porAgente = new Map(reportes.map((r) => [r.agenteId, r]));
@@ -35,19 +35,24 @@ export async function excelAgentes(titulo: string, filas: ResultadoAgente[], rep
       ...f.cede.map((x) => `-${(x.porcentaje * 100).toFixed(2)}% a ${x.nombre}`),
     ].join("; ");
     ws.addRow([f.nombre, f.base, f.porcentaje, reparto, f.bono, f.iva, f.retIsr, f.retIva, f.total,
-      rep?.estado ?? "", rep?.facturaUuid ?? "", rep?.fechaPago ?? ""]);
+      rep?.total ?? "", rep?.estado ?? "", rep?.facturaUuid ?? "", rep?.fechaPago ?? ""]);
   }
   const n = ws.rowCount;
-  const tot = ws.addRow(["TOTAL", { formula: `SUM(B3:B${n})` }, "", "", { formula: `SUM(E3:E${n})` },
-    { formula: `SUM(F3:F${n})` }, { formula: `SUM(G3:G${n})` }, { formula: `SUM(H3:H${n})` }, { formula: `SUM(I3:I${n})` }]);
+  const suma = (c: string) => (n >= 3 ? { formula: `SUM(${c}3:${c}${n})` } : 0);
+  const tot = ws.addRow(["TOTAL", suma("B"), "", "", suma("E"), suma("F"), suma("G"), suma("H"), suma("I"), suma("J")]);
   tot.font = { bold: true };
-  for (const c of [2, 5, 6, 7, 8, 9]) ws.getColumn(c).numFmt = MONEDA;
+  for (const c of [2, 5, 6, 7, 8, 9, 10]) ws.getColumn(c).numFmt = MONEDA;
   ws.getColumn(3).numFmt = "0.00%";
-  ws.columns.forEach((c, i) => (c.width = [38, 18, 9, 34, 14, 12, 12, 12, 14, 12, 38, 12][i]));
+  ws.columns.forEach((c, i) => (c.width = [38, 18, 9, 34, 14, 12, 12, 12, 14, 14, 12, 38, 12][i]));
   return buffer(wb);
 }
 
-export async function excelPromotor(titulo: string, nombre: string, r: ResultadoPromotor): Promise<ArrayBuffer> {
+export async function excelPromotor(
+  titulo: string,
+  nombre: string,
+  r: ResultadoPromotor,
+  reporte?: ReporteBono,
+): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Promotor");
   ws.addRow([`${nombre} – ${titulo.toUpperCase()}`]).font = { bold: true, size: 13 };
@@ -69,6 +74,7 @@ export async function excelPromotor(titulo: string, nombre: string, r: Resultado
     ["Ponderado", r.ponderado], ["Subtotal × ponderado", r.subtotal], ["Factor", r.factor], ["Bono", r.bono],
     ["IVA", r.iva], ["Retención ISR", r.retIsr], ["Retención IVA", r.retIva], ["Total a facturar", r.total],
   ];
+  if (reporte && Math.abs(reporte.total - r.total) > 0.005) resumen.push([`Total del reporte (${reporte.estado})`, reporte.total]);
   for (const [k, v] of resumen) {
     const row = ws.addRow(["", "", "", "", "", "", "", "", "", k, v]);
     row.getCell(10).font = { bold: true };
