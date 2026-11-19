@@ -31,7 +31,10 @@ export async function POST(req: Request, { params }: { params: { token: string }
   const xmlTexto = Buffer.from(await xml.arrayBuffer()).toString("utf8");
   const cfdi = leerCfdi(xmlTexto);
   if (!cfdi) return NextResponse.json({ error: "El XML no es un CFDI válido." }, { status: 422 });
-  if (cfdi.total !== null && Math.abs(cfdi.total - r.total) > 1) {
+  if (cfdi.total === null) {
+    return NextResponse.json({ error: "El XML no trae el atributo Total del comprobante." }, { status: 422 });
+  }
+  if (Math.abs(cfdi.total - r.total) > 1) {
     return NextResponse.json(
       { error: `El total del XML (${cfdi.total.toFixed(2)}) no coincide con el total a facturar (${r.total.toFixed(2)}).` },
       { status: 422 },
