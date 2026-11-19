@@ -149,11 +149,12 @@ function bonosAgentes(
     if (!origen || !destino) continue;
     const total = cedido.get(r.origenId)!;
     const tope = porId.get(r.origenId)!.porcentaje;
-    const importe = origen.base * (total > tope ? (r.porcentaje * tope) / total : r.porcentaje);
+    const porcentaje = total > tope ? (r.porcentaje * tope) / total : r.porcentaje;
+    const importe = origen.base * porcentaje;
     origen.bono -= importe;
     destino.bono += importe;
-    origen.cede.push({ agenteId: r.destinoId, nombre: porId.get(r.destinoId)!.nombre, porcentaje: r.porcentaje, importe: redondear(importe) });
-    destino.recibe.push({ agenteId: r.origenId, nombre: porId.get(r.origenId)!.nombre, porcentaje: r.porcentaje, importe: redondear(importe) });
+    origen.cede.push({ agenteId: r.destinoId, nombre: porId.get(r.destinoId)!.nombre, porcentaje, importe: redondear(importe) });
+    destino.recibe.push({ agenteId: r.origenId, nombre: porId.get(r.origenId)!.nombre, porcentaje, importe: redondear(importe) });
   }
   return res;
 }

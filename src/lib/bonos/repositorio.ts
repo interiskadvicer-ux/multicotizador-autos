@@ -156,7 +156,7 @@ export function actualizarAgente(
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Correo inválido.");
   const porcentaje = datos.porcentaje ?? actual.porcentaje;
   if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 1) throw new Error("Porcentaje inválido.");
-  const cede = porcentajeCedido(id);
+  const cede = datos.porcentaje === undefined ? 0 : porcentajeCedido(id);
   if (porcentaje + 1e-9 < cede)
     throw new Error(`El agente cede ${(cede * 100).toFixed(2)}% en repartos; ajusta los repartos antes de bajar su %.`);
   db.prepare("UPDATE bono_agentes SET subpromo = ?, porcentaje = ?, email = ?, activo = ? WHERE id = ?").run(
@@ -312,7 +312,8 @@ export function sembrarRepartoInicial(): void {
   const destino = agentePorNombre("PABLO STEINMAN SOSA");
   if (!origen || !destino) return;
   const hay = db.prepare("SELECT COUNT(*) AS n FROM bono_repartos").get() as { n: number };
-  if (hay.n === 0) guardarReparto(origen, destino, 0.01);
+  const eloisa = db.prepare("SELECT porcentaje FROM bono_agentes WHERE id = ?").get(origen) as { porcentaje: number };
+  if (hay.n === 0 && eloisa.porcentaje >= 0.01) guardarReparto(origen, destino, 0.01);
   db.prepare("INSERT OR IGNORE INTO bono_config (clave, valor) VALUES ('_repartoInicial', 'true')").run();
 }
 
