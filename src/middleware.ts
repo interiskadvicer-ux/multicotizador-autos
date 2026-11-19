@@ -15,7 +15,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (RUTAS_PUBLICAS.includes(pathname)) {
+  // Enlace personal del correo de bonos: se autentica con su token.
+  if (RUTAS_PUBLICAS.includes(pathname) || pathname.startsWith("/bonos/factura/")) {
     return NextResponse.next();
   }
 

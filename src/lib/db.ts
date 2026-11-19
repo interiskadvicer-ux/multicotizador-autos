@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
+import { inicializarEsquemaBonos } from "@/lib/bonos/esquema";
 
 // Capa de acceso a datos con SQLite (better-sqlite3). Una sola base de datos
 // en archivo, en el mismo servidor. La ruta se puede configurar con
@@ -233,6 +234,7 @@ function inicializarEsquema(database: Database.Database): void {
       reporte TEXT
     );
   `);
+  inicializarEsquemaBonos(database);
 }
 
 // Carpeta para archivos subidos (documentos de agentes, plantillas de

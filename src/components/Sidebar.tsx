@@ -34,6 +34,7 @@ const SECCIONES: {
       { href: "/cotizaciones", label: "Cotizaciones", roles: TODOS },
       { href: "/polizas", label: "Pólizas", roles: ["ADMIN", "POLIZAS", "AGENTE"] },
       { href: "/cobranza", label: "Cobranza", roles: ["ADMIN", "POLIZAS"] },
+      { href: "/admin/bonos", label: "Bonos El Potosí", roles: ["ADMIN"] },
     ],
   },
   {
