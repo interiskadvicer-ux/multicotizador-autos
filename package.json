@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "seed:admin": "node scripts/seed-admin.mjs",
-    "sepomex": "node scripts/sepomex.mjs"
+    "sepomex": "node scripts/sepomex.mjs",
+    "cobranza:diaria": "tsx scripts/cobranza-diaria.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,14 +19,17 @@
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "next": "14.2.35",
+    "nodemailer": "^6.10.1",
     "pdfjs-dist": "^4.10.38",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "tsx": "^4.23.15"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.24",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
